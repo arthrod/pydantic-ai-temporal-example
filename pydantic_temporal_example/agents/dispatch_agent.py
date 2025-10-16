@@ -26,9 +26,9 @@ class SlackResponse:
     """A marker that indicates that you want to immediately send a response message.
 
     You can use this to request additional information from the user if they have not provided all the information
-    necessary to make a DinnerOptionResearchRequest.
+    necessary to make a WebResearchRequest.
 
-    This tool provides a way to respond to the thread without triggering the dinner options research agent.
+    This tool provides a way to respond to the thread without triggering the web research agent.
     For example, if you ask the user a question, then they ask for clarification, you can use this to
     provide that clarification under the assumption that they will subsequently respond to your initial question.
     """
@@ -42,8 +42,8 @@ class SlackResponse:
 
 @dataclass
 @with_config(use_attribute_docstrings=True)
-class DinnerOptionResearchRequest:
-    """A marker that indicates that you are ready to delegate to the dinner options research agent.
+class WebResearchRequest:
+    """A marker that indicates that you are ready to delegate to the web research agent.
 
     If you have not already provided suggestions in the thread, you should generally use this tool whenever you have the
     necessary information to do so, unless the user has made a different request that is better handled by a direct
@@ -51,44 +51,54 @@ class DinnerOptionResearchRequest:
     additional information.
     """
 
-    type: Literal["dinner-option-research-request"]
+    type: Literal["web-research-request"]
     location: WebSearchUserLocation
-    cuisine_preferences: str
-    price_preferences: str
-    dietary_restrictions: str
+    query: str
     extra_info: str | None
 
 
-type DispatchResult = NoResponse | SlackResponse | DinnerOptionResearchRequest
+@dataclass
+@with_config(use_attribute_docstrings=True)
+class GitHubRequest:
+    """A marker that indicates that you are ready to delegate to the github agent."""
+
+    type: Literal["github-request"]
+    query: str
+    extra_info: str | None
+
+
+type DispatchResult = NoResponse | SlackResponse | WebResearchRequest | GitHubRequest
 
 dispatch_agent = Agent(
     model="openai-responses:gpt-5-mini",
-    output_type=[NoResponse, SlackResponse, DinnerOptionResearchRequest],
+    output_type=[NoResponse, SlackResponse, WebResearchRequest, GitHubRequest],
     instructions="""
-    You are a dispatch agent in an application designed to help a user decide what to order for dinner.
-    
+    You are a dispatch agent in an application designed to help a user with their requests.
+
     You will be provided with the contents of a slack thread the user is messaging you in.
 
     You will be triggered any time the user @-mentions you on slack, or when there is a reply to a thread in which you
     have been @-mentioned.
-    
-    If dinner suggestions have not been provided in the thread, your goal should be to call, or collect enough
-    information to call, the DinnerOptionResearchRequest tool.
 
-    This tool delegates to a specialized agent to do research on local options the user might be interested in and
-    sends a response to the user's request. It takes a while to do this research, so you should not fill in the fields
-    of the request by _guessing_ the user's preferences — if you are missing information, you must use the SlackResponse
-    tool to request the necessary information from the user before making the request.
-    
-    If suggestions _have_ already been provided, you should NOT call the DinnerOptionResearchRequest tool again unless
-    the user provides new information that would _change_ the contents of the DinnerOptionResearchRequest. If they just
-    respond to your suggestions, you can (optionally) use the search tools and just generate a SlackResponse directly.   
+    Your goal should be to call, or collect enough information to call, the WebResearchRequest or GitHubRequest tool.
+
+    The WebResearchRequest tool delegates to a specialized agent to do research on local options the user might be
+    interested in and sends a response to the user's request. It takes a while to do this research, so you should not
+    fill in the fields of the request by _guessing_ the user's preferences — if you are missing information, you must
+    use the SlackResponse tool to request the necessary information from the user before making the request.
+
+    The GitHubRequest tool delegates to a specialized agent to do research on GitHub repositories.
+
+    If suggestions _have_ already been provided, you should NOT call the WebResearchRequest or GitHubRequest tool again
+    unless the user provides new information that would _change_ the contents of the request. If they just respond to
+    your suggestions, you can (optionally) use the search tools and just generate a SlackResponse directly.
 
     The SlackResponse tool can also be used to otherwise engage the user if appropriate.
 
-    You should NOT attempt to produce suggestions for the user directly — always use the DinnerOptionResearchRequest
-    tool to produce the suggestions. However, you may use the duckduckgo tool to search the internet if the user asks a
-    relevant question that shouldn't be used to produce a call to the DinnerOptionResearchRequest tool.
+    You should NOT attempt to produce suggestions for the user directly — always use the WebResearchRequest or
+    GitHubRequest tool to produce the suggestions. However, you may use the duckduckgo tool to search the internet if
+    the user asks a relevant question that shouldn't be used to produce a call to the WebResearchRequest or
+    GitHubRequest tool.
     """,
-    tools=[duckduckgo_search_tool()],  # sometimes
+    tools=[duckduckgo_search_tool()],
 )

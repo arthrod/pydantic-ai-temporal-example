@@ -8,11 +8,15 @@ from pydantic_ai.durable_exec.temporal import TemporalAgent
 from pydantic_core import to_json
 from temporalio import workflow
 
-from pydantic_temporal_example.agents.dinner_research_agent import (
-    DinnerSuggestions,
-    dinner_research_agent,
+from pydantic_temporal_example.agents.dispatch_agent import (
+    GitHubRequest,
+    NoResponse,
+    SlackResponse,
+    WebResearchRequest,
+    dispatch_agent,
 )
-from pydantic_temporal_example.agents.dispatch_agent import NoResponse, SlackResponse, dispatch_agent
+from pydantic_temporal_example.agents.github_agent import GitHubResponse, github_agent
+from pydantic_temporal_example.agents.web_research_agent import WebResearchResponse, web_research_agent
 from pydantic_temporal_example.models import (
     AppMentionEvent,
     MessageChannelsEvent,
@@ -29,7 +33,8 @@ from pydantic_temporal_example.temporal.slack_activities import (
 )
 
 temporal_dispatch_agent = TemporalAgent(dispatch_agent, name="dispatch_agent")
-temporal_dinner_research_agent = TemporalAgent(dinner_research_agent, name="dinner_research_agent")
+temporal_web_research_agent = TemporalAgent(web_research_agent, name="web_research_agent")
+temporal_github_agent = TemporalAgent(github_agent, name="github_agent")
 
 
 @workflow.defn
@@ -108,11 +113,22 @@ class SlackThreadWorkflow:
 
 
 @logfire.instrument
-async def handle_user_request(stringified_thread: str) -> NoResponse | SlackResponse | DinnerSuggestions:
+async def handle_user_request(
+    stringified_thread: str,
+) -> NoResponse | SlackResponse | WebResearchResponse | GitHubResponse:
     dispatch_result = await temporal_dispatch_agent.run(stringified_thread)
-    if isinstance(request := dispatch_result.output, NoResponse | SlackResponse):
+    request = dispatch_result.output
+    if isinstance(request, NoResponse | SlackResponse):
         return request
-    dinner_choosing_result = await temporal_dinner_research_agent.run(
-        f"User info: {to_json(dispatch_result.output, indent=2).decode()}"
-    )
-    return dinner_choosing_result.output
+    elif isinstance(request, WebResearchRequest):
+        web_research_result = await temporal_web_research_agent.run(
+            f"User info: {to_json(dispatch_result.output, indent=2).decode()}"
+        )
+        return web_research_result.output
+    elif isinstance(request, GitHubRequest):
+        github_result = await temporal_github_agent.run(
+            f"User info: {to_json(dispatch_result.output, indent=2).decode()}"
+        )
+        return github_result.output
+    else:
+        raise TypeError(f"Unknown request type: {type(request)}")
