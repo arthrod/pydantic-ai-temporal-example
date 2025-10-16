@@ -6,8 +6,8 @@ from typing import Any
 from fastapi import HTTPException
 from starlette.requests import Request
 
+from pydantic_temporal_example.config import get_settings
 from pydantic_temporal_example.models import SlackEventsAPIBody, SlackEventsAPIBodyAdapter, URLVerificationEvent
-from pydantic_temporal_example.settings import get_settings
 
 
 async def get_verified_slack_events_body(

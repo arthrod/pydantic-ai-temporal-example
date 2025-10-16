@@ -2,13 +2,13 @@ import logfire
 from pydantic_ai.durable_exec.temporal import LogfirePlugin, PydanticAIPlugin
 from temporalio.client import Client as TemporalClient
 
-from pydantic_temporal_example.settings import get_settings
+from pydantic_temporal_example.config import get_settings
 
 
-async def build_temporal_client() -> TemporalClient:
+async def build_temporal_client(host: str | None = None, port: int | None = None) -> TemporalClient:
     settings = get_settings()
-    temporal_host = settings.temporal_host or "localhost"
-    temporal_port = settings.temporal_port
+    host = host or settings.temporal_host or "localhost"
+    port = port or settings.temporal_port
 
     def _setup_logfire() -> logfire.Logfire:
         instance = logfire.configure()
@@ -16,6 +16,4 @@ async def build_temporal_client() -> TemporalClient:
         logfire.instrument_httpx(capture_all=True)
         return instance
 
-    return await TemporalClient.connect(
-        f"{temporal_host}:{temporal_port}", plugins=[PydanticAIPlugin(), LogfirePlugin(_setup_logfire)]
-    )
+    return await TemporalClient.connect(f"{host}:{port}", plugins=[PydanticAIPlugin(), LogfirePlugin(_setup_logfire)])

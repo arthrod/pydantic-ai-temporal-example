@@ -5,8 +5,8 @@ import logfire
 from slack_sdk.web.async_client import AsyncWebClient as SlackClient
 from temporalio import activity
 
+from pydantic_temporal_example.config import get_settings
 from pydantic_temporal_example.models import SlackConversationsRepliesRequest, SlackMessageID, SlackReaction, SlackReply
-from pydantic_temporal_example.settings import get_settings
 
 
 @activity.defn
