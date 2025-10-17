@@ -19,14 +19,11 @@ async def temporal_worker(
     host: str | None = None,
     port: int | None = None,
     task_queue: str | None = None,
-    schedule_interval_seconds: int | None = None,
-    repeat: bool = False,
 ) -> AsyncIterator[Worker]:
     settings = get_settings()
     host = host or settings.temporal_host
     port = port or settings.temporal_port
     task_queue = task_queue or settings.temporal_task_queue
-    schedule_interval_seconds = schedule_interval_seconds or settings.schedule_interval_seconds
 
     async with AsyncExitStack() as stack:
         if host is None:
