@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    jina_api_key: str | None = None
     slack_bot_token: str
     slack_signing_secret: str
     temporal_host: str | None = None
