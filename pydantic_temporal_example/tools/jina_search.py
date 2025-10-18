@@ -34,7 +34,22 @@ class JinaSearchTool:
         topic: Literal["general", "news"] = "general",
         time_range: Literal["day", "week", "month", "year", "d", "w", "m", "y"] | None = None,
     ):
-        """Searches Jina for the given query and returns the results."""
+        """
+        Perform a Jina search for the given query using either basic or advanced mode.
+        
+        Parameters:
+            query (str): The search query text.
+            search_deep (Literal["basic", "advanced"]): If "basic", use the standard search endpoint that returns multiple markdown-formatted results; if "advanced", use the DeepSearch streaming endpoint and aggregate its response into a single result.
+            topic (Literal["general", "news"]): Optional topic hint; accepted but not used by the current implementation.
+            time_range (Literal["day", "week", "month", "year", "d", "w", "m", "y"] | None): Optional time-range hint; accepted but not used by the current implementation.
+        
+        Returns:
+            list[dict]: A validated list of search result objects with keys:
+                - title (str): Result title.
+                - url (str): Result URL (empty string when not provided).
+                - content (str): Result content or aggregated DeepSearch content.
+                - score (float): Relevance score (defaults to 0.0 when not provided).
+        """
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Accept": "application/json",
@@ -99,7 +114,15 @@ class JinaSearchTool:
 
 
 def jina_search_tool(api_key: str):
-    """Creates a Jina search tool."""
+    """
+    Create a Tool that performs searches against Jina.
+    
+    Parameters:
+        api_key (str): API key used to authenticate requests to Jina.
+    
+    Returns:
+        Tool[Any]: A Tool named "jina_search" configured to execute Jina searches and return validated search results.
+    """
     return Tool[Any](
         JinaSearchTool(client=httpx.AsyncClient(), api_key=api_key).__call__,
         name="jina_search",
