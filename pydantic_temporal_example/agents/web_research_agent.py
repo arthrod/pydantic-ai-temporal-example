@@ -6,7 +6,9 @@ from pydantic_ai import (
     Agent,
     NativeOutput,
 )
-from pydantic_ai.common_tools.duckduckgo import duckduckgo_search_tool  # pyright: ignore[reportUnknownVariableType]
+
+from pydantic_temporal_example.settings import get_settings
+from pydantic_temporal_example.tools import jina_search_tool
 
 
 @dataclass
@@ -27,6 +29,11 @@ class WebResearchResponse:
     """
 
 
+settings = get_settings()
+if settings.jina_api_key is None:
+    raise ValueError("JINA_API_KEY environment variable not set")
+
+
 web_research_agent = Agent(
     model="openai-responses:gpt-5-mini",
     output_type=NativeOutput(WebResearchResponse),
@@ -34,5 +41,5 @@ web_research_agent = Agent(
 
     Using the provided information, use the tools at your disposal to research what you think the user might want.
     """,
-    tools=[duckduckgo_search_tool()],
+    tools=[jina_search_tool(settings.jina_api_key)],
 )
