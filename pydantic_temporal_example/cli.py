@@ -16,46 +16,40 @@ def main(
         typer.Option(
             help="The host for the temporal worker.",
         ),
-    ] = get_settings().temporal_host,
+    ] = None,
     port: Annotated[
-        int,
+        int | None,
         typer.Option(
             help="The port for the temporal worker.",
         ),
-    ] = get_settings().temporal_port,
+    ] = None,
     task_queue: Annotated[
-        str,
+        str | None,
         typer.Option(
             help="The task queue for the temporal worker.",
         ),
-    ] = get_settings().temporal_task_queue,
-    schedule_interval_seconds: Annotated[
-        int,
-        typer.Option(
-            help="The schedule interval in seconds.",
-        ),
-    ] = get_settings().schedule_interval_seconds,
-    repeat_worker: Annotated[
-        bool,
-        typer.Option(
-            help="Whether the worker should repeat.",
-        ),
-    ] = get_settings().repeat_worker,
-):
-    """Temporal Agent CLI
-    """
+    ] = None,
+) -> None:
+    """Temporal Agent CLI"""
+    settings = get_settings()
+    host = host or settings.temporal_host
+    port = port or settings.temporal_port
+    task_queue = task_queue or settings.temporal_task_queue
 
-    async def _main():
+    async def _main() -> None:
         async with temporal_worker(
             host=host,
             port=port,
             task_queue=task_queue,
-            schedule_interval_seconds=schedule_interval_seconds,
-            repeat=repeat_worker,
-        ):
-            print("Temporal worker started.")
+        ) as worker:
+            print("Temporal worker started. Press Ctrl+C to exit.")
+            await worker.run()
+            print("Temporal worker finished.")
 
-    asyncio.run(_main())
+    try:
+        asyncio.run(_main())
+    except KeyboardInterrupt:
+        print("\nShutting down...")
 
 
 if __name__ == "__main__":

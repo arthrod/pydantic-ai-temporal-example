@@ -14,6 +14,8 @@ async def get_verified_slack_events_body(
     request: Request,
 ) -> SlackEventsAPIBody | URLVerificationEvent | dict[str, Any]:
     signing_secret = get_settings().slack_signing_secret
+    if signing_secret is None:
+        raise HTTPException(status_code=500, detail="Slack signing secret not configured")
     # Get timestamp header
     timestamp_header = request.headers.get("x-slack-request-timestamp")
     if not timestamp_header:
