@@ -7,7 +7,7 @@ from slack_sdk.web.async_client import AsyncWebClient as SlackClient
 from starlette.requests import Request
 from temporalio.client import Client as TemporalClient
 
-from pydantic_temporal_example.settings import get_settings
+from pydantic_temporal_example.config import get_settings
 from pydantic_temporal_example.temporal.client import build_temporal_client
 
 
