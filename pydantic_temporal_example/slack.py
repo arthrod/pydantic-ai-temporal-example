@@ -1,18 +1,25 @@
+"""Slack Events API verification and request signing utilities."""
+
+from __future__ import annotations
+
 import hashlib
 import hmac
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException
-from starlette.requests import Request
 
 from pydantic_temporal_example.models import SlackEventsAPIBody, SlackEventsAPIBodyAdapter, URLVerificationEvent
 from pydantic_temporal_example.settings import get_settings
+
+if TYPE_CHECKING:
+    from starlette.requests import Request
 
 
 async def get_verified_slack_events_body(
     request: Request,
 ) -> SlackEventsAPIBody | URLVerificationEvent | dict[str, Any]:
+    """Verify Slack request signature and timestamp, then parse the events payload."""
     signing_secret = get_settings().slack_signing_secret
     # Get timestamp header
     timestamp_header = request.headers.get("x-slack-request-timestamp")

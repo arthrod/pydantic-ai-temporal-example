@@ -1,3 +1,7 @@
+"""GitHub-focused agent returning structured responses for repository and issue tasks."""
+
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -8,6 +12,8 @@ from pydantic_ai import Agent, NativeOutput
 @dataclass
 @with_config(use_attribute_docstrings=True)
 class GitHubResponse:
+    """Structured output produced by the GitHub agent."""
+
     response: str | list[dict[str, Any]]
     """
     The formatted message to show to the user.

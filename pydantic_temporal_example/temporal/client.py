@@ -1,3 +1,5 @@
+"""Temporal client builder with Logfire and PydanticAI plugins."""
+
 import logfire
 from pydantic_ai.durable_exec.temporal import LogfirePlugin, PydanticAIPlugin
 from temporalio.client import Client as TemporalClient
@@ -6,6 +8,7 @@ from pydantic_temporal_example.settings import get_settings
 
 
 async def build_temporal_client() -> TemporalClient:
+    """Connect to the Temporal server with PydanticAI and Logfire plugins configured."""
     settings = get_settings()
     temporal_host = settings.temporal_host or "localhost"
     temporal_port = settings.temporal_port
@@ -17,5 +20,6 @@ async def build_temporal_client() -> TemporalClient:
         return instance
 
     return await TemporalClient.connect(
-        f"{temporal_host}:{temporal_port}", plugins=[PydanticAIPlugin(), LogfirePlugin(_setup_logfire)]
+        f"{temporal_host}:{temporal_port}",
+        plugins=[PydanticAIPlugin(), LogfirePlugin(_setup_logfire)],
     )

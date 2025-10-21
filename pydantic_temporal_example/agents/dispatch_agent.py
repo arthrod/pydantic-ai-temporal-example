@@ -1,3 +1,7 @@
+"""Dispatcher agent that routes to Slack, web research, or GitHub."""
+
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Any, Literal
 

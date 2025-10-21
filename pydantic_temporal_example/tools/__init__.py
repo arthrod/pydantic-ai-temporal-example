@@ -1,3 +1,10 @@
-from .jina_search import jina_search_tool
+"""Tool integrations used by agents (e.g., Jina search)."""
 
-__all__ = ["jina_search_tool"]
+from .jina_search import (
+    JinaSearchResult,
+    JinaSearchTool,
+    jina_search_ta,
+    jina_search_tool,
+)
+
+__all__ = ["JinaSearchResult", "JinaSearchTool", "jina_search_ta", "jina_search_tool"]
