@@ -1,3 +1,5 @@
+"""FastAPI app setup and local dev entrypoint with Temporal worker."""
+
 import logfire
 import uvicorn
 from fastapi import FastAPI
@@ -15,9 +17,20 @@ logfire.instrument_httpx(capture_all=True)
 logfire.instrument_fastapi(app)
 
 
-async def main():
+async def main() -> None:
+    """FastAPI app setup and local dev entrypoint with Temporal worker."""
+    # Optional: install uvloop (no-op on Windows)
+    try:
+        import uvloop  # type: ignore
+
+        uvloop.install()
+    except Exception:
+        pass
+
     async with temporal_worker():
-        config = uvicorn.Config("pydantic_temporal_example.app:app", port=4000)
+        host = "0.0.0.0"  # Expose to all interfaces for container access
+        port = 4000
+        config = uvicorn.Config("pydantic_temporal_example.app:app", host=host, port=port)
         server = uvicorn.Server(config)
         await server.serve()
 
