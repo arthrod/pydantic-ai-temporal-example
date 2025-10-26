@@ -4,7 +4,7 @@ import logfire
 from pydantic_ai.durable_exec.temporal import LogfirePlugin, PydanticAIPlugin
 from temporalio.client import Client as TemporalClient
 
-from pydantic_temporal_example.config import get_settings
+from pydantic_temporal_example.settings import get_settings
 
 
 async def build_temporal_client(host: str | None = None, port: int | None = None) -> TemporalClient:
@@ -21,9 +21,9 @@ async def build_temporal_client(host: str | None = None, port: int | None = None
         ValueError: If port is None after resolution from settings
     """
     settings = get_settings()
-    host = host or settings.temporal_host or "localhost"
-    resolved_port = port or settings.temporal_port
-    # Note: resolved_port will always have a value from settings.temporal_port default (7233)
+    temporal_host = host or settings.temporal_host or "localhost"
+    temporal_port = port or settings.temporal_port
+    # Note: temporal_port will always have a value from settings.temporal_port default (7233)
 
     def _setup_logfire() -> logfire.Logfire:
         instance = logfire.configure()

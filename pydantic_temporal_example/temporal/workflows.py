@@ -36,6 +36,7 @@ from pydantic_temporal_example.temporal.slack_activities import (
 
 temporal_dispatch_agent = TemporalAgent(dispatch_agent, name="dispatch_agent")
 temporal_github_agent = TemporalAgent(github_agent, name="github_agent")
+temporal_web_research_agent = TemporalAgent(build_web_research_agent(), name="web_research_agent")
 
 
 @workflow.defn
@@ -99,6 +100,7 @@ class SlackThreadWorkflow:
         self._thread_messages.extend(new_messages)
 
         # Get directive from the dispatch agent
+        # Pass thread messages as JSON string to dispatch agent
         stringified_thread = json.dumps(self._thread_messages, indent=2)
         dispatcher_result = await temporal_dispatch_agent.run(stringified_thread)
 
@@ -116,26 +118,16 @@ class SlackThreadWorkflow:
         if isinstance(dispatcher_result.output, SlackResponse):
             response = dispatcher_result.output.response
         elif isinstance(dispatcher_result.output, GitHubRequest):
-            gh = dispatcher_result.output
-            gh_prompt = (
-                "GitHub request. "
-                f"Query: {gh.query}. "
-                f"Extra info: {gh.extra_info or 'N/A'}.\n"
-                f"Thread: {stringified_thread}"
-            )
-            result = await temporal_github_agent.run(gh_prompt)
+            # Populate thread context and pass structured request
+            request = dispatcher_result.output
+            request.thread_messages = self._thread_messages
+            result = await temporal_github_agent.run(request)
             response = result.output.response
         elif isinstance(dispatcher_result.output, WebResearchRequest):
-            wr = dispatcher_result.output
-            temporal_web_research_agent = TemporalAgent(build_web_research_agent(), name="web_research_agent")
-            wr_prompt = (
-                "Web research request.\n"
-                f"Location: {wr.location}.\n"
-                f"Query: {wr.query}.\n"
-                f"Extra info: {wr.extra_info or 'N/A'}.\n"
-                f"Thread: {stringified_thread}"
-            )
-            result = await temporal_web_research_agent.run(wr_prompt)
+            # Populate thread context and pass structured request
+            request = dispatcher_result.output
+            request.thread_messages = self._thread_messages
+            result = await temporal_web_research_agent.run(request)
             response = result.output.response
         else:
             assert_never(dispatcher_result.output)

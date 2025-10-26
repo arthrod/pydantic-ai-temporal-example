@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from slack_sdk.web.async_client import AsyncWebClient as SlackClient
 
-from pydantic_temporal_example.config import get_settings
+from pydantic_temporal_example.settings import get_settings
 from pydantic_temporal_example.temporal.client import build_temporal_client
 
 if TYPE_CHECKING:
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 async def lifespan(_server: FastAPI) -> AsyncIterator[dict[str, Any]]:
     """Initialize shared app state (Temporal client, Slack bot user id) for FastAPI lifespan."""
     settings = get_settings()
-    slack_client = SlackClient(token=settings.slack_bot_token, timeout=60)
+    slack_client = SlackClient(token=settings.slack_bot_token.get_secret_value(), timeout=60)
 
     slack_bot_user_id: str = cast("str", (await slack_client.auth_test())["user_id"])  # pyright: ignore[reportUnknownMemberType]
     yield {"temporal_client": await build_temporal_client(), "slack_bot_user_id": slack_bot_user_id}

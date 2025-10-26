@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException
 
-from pydantic_temporal_example.config import get_settings
+from pydantic_temporal_example.settings import get_settings
 from pydantic_temporal_example.models import SlackEventsAPIBody, SlackEventsAPIBodyAdapter, URLVerificationEvent
 
 if TYPE_CHECKING:
@@ -20,16 +20,24 @@ async def get_verified_slack_events_body(
     request: Request,
 ) -> SlackEventsAPIBody | URLVerificationEvent | dict[str, Any]:
     """Verify Slack request signature and timestamp, then parse the events payload."""
-    signing_secret = get_settings().slack_signing_secret
+    settings = get_settings()
+    signing_secret = settings.slack_signing_secret.get_secret_value()
+    if not signing_secret:
+        raise HTTPException(status_code=401, detail="Slack signing secret not configured")
+
     # Get timestamp header
     timestamp_header = request.headers.get("x-slack-request-timestamp")
     if not timestamp_header:
         raise HTTPException(status_code=401, detail="Missing x-slack-request-timestamp header")
 
-    # Check if timestamp is not older than 5 minutes
-    five_minutes_ago = int(time.time()) - (60 * 5)
-    if int(timestamp_header) < five_minutes_ago:
-        raise HTTPException(status_code=401, detail="Request timestamp too old")
+    # Check if timestamp is valid and not older than 5 minutes or far in the future
+    now = int(time.time())
+    try:
+        ts = int(timestamp_header)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid x-slack-request-timestamp header")
+    if ts < (now - 300) or ts > (now + 300):
+        raise HTTPException(status_code=401, detail="Request timestamp too old or too far in the future")
 
     # Get signature header
     signature_header = request.headers.get("x-slack-signature")

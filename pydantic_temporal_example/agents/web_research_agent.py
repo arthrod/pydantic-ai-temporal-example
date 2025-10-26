@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import with_config
 from pydantic_ai import (
@@ -14,14 +14,8 @@ from pydantic_ai import (
 from pydantic_temporal_example.settings import get_settings
 from pydantic_temporal_example.tools import jina_search_tool
 
-
-@dataclass
-class WebSearchResult:
-    """A single web search hit."""
-
-    title: str
-    url: str | None
-    summary: str
+if TYPE_CHECKING:
+    from pydantic_temporal_example.agents.dispatch_agent import WebResearchRequest
 
 
 @dataclass
@@ -33,27 +27,34 @@ class WebResearchResponse:
     """
     The formatted message to show to the user.
 
-    This should either be a markdown text string, or valid Slack blockkit blocks.
+    This should either be a markdown text string, or valid Slack Block Kit blocks.
     """
 
 
-settings = get_settings()
-# Defer validation to builder below to avoid import-time failures.
+# Settings are fetched in the builder to avoid import-time side effects.
 
 
-def build_web_research_agent() -> Agent[None, WebResearchResponse]:
+def build_web_research_agent() -> Agent[WebResearchRequest, WebResearchResponse]:
     """Construct the web research agent, validating `JINA_API_KEY` at build time."""
     settings = get_settings()
     if settings.jina_api_key is None:
         msg = "JINA_API_KEY not set"
         raise ValueError(msg)
     api_key = settings.jina_api_key.get_secret_value()
-    return Agent[None, WebResearchResponse](
+    return Agent[WebResearchRequest, WebResearchResponse](
         model="openai-responses:gpt-5-mini",
         output_type=NativeOutput(WebResearchResponse),
-        instructions="""The user wants help with a web research task.
+        instructions="""You are a web research assistant.
 
-    Using the provided information, use the tools at your disposal to research what you think the user might want.
+    You will receive a WebResearchRequest with:
+    - location: User's geographic location for local search
+    - query: The research query
+    - extra_info: Any additional context
+    - thread_messages: The full Slack thread for reference
+
+    - Disambiguate briefly if needed.
+    - Use tools for current info; cite sources and dates inline.
+    - Return concise Markdown or valid Slack Block Kit blocks.
     """,
         tools=[jina_search_tool(api_key)],
     )
