@@ -32,9 +32,9 @@ def main(
 ) -> None:
     """Temporal Agent CLI"""
     settings = get_settings()
-    host = host or settings.temporal_host
-    port = port or settings.temporal_port
-    task_queue = task_queue or settings.temporal_task_queue
+    host = host if host is not None else settings.temporal_host
+    port = port if port is not None else settings.temporal_port
+    task_queue = task_queue if task_queue is not None else settings.temporal_task_queue
 
     async def _main() -> None:
         async with temporal_worker(
