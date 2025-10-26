@@ -1,13 +1,13 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.9.4,<0.10.0"]
+build-backend = "uv_build"
 
 [project]
 name = "pydantic-temporal-example"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "pydantic-ai>=1.0.2",
     "logfire[fastapi]>=4.3.4",
@@ -34,7 +34,7 @@ default-groups = ["dev", "lint"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py39"
+target-version = "py314"
 include = [
     "pydantic_temporal_example/**/*.py",
 ]
@@ -67,7 +67,7 @@ known-first-party = ["pydantic_temporal_example"]
 convention = "google"
 
 [tool.pyright]
-pythonVersion = "3.12"
+pythonVersion = "3.14"
 typeCheckingMode = "strict"
 reportMissingTypeStubs = false
 reportUnnecessaryIsInstance = false

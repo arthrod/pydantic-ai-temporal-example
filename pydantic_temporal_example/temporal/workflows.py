@@ -1,18 +1,24 @@
+"""Temporal workflows orchestrating Slack threads and agent dispatch."""
+
+from __future__ import annotations
+
 import asyncio
 import json
 from datetime import timedelta
-from typing import Any
+from typing import Any, assert_never
 
-import logfire
 from pydantic_ai.durable_exec.temporal import TemporalAgent
-from pydantic_core import to_json
 from temporalio import workflow
 
-from pydantic_temporal_example.agents.dinner_research_agent import (
-    DinnerSuggestions,
-    dinner_research_agent,
+from pydantic_temporal_example.agents.dispatch_agent import (
+    GitHubRequest,
+    NoResponse,
+    SlackResponse,
+    WebResearchRequest,
+    dispatch_agent,
 )
-from pydantic_temporal_example.agents.dispatch_agent import NoResponse, SlackResponse, dispatch_agent
+from pydantic_temporal_example.agents.github_agent import github_agent
+from pydantic_temporal_example.agents.web_research_agent import build_web_research_agent
 from pydantic_temporal_example.models import (
     AppMentionEvent,
     MessageChannelsEvent,
@@ -29,12 +35,15 @@ from pydantic_temporal_example.temporal.slack_activities import (
 )
 
 temporal_dispatch_agent = TemporalAgent(dispatch_agent, name="dispatch_agent")
-temporal_dinner_research_agent = TemporalAgent(dinner_research_agent, name="dinner_research_agent")
+temporal_github_agent = TemporalAgent(github_agent, name="github_agent")
 
 
 @workflow.defn
 class SlackThreadWorkflow:
+    """Orchestrates a Slack thread: collects messages, dispatches, and runs agents."""
+
     def __init__(self) -> None:
+        """Initialize pending event queue and thread message store."""
         self._pending_events: asyncio.Queue[AppMentionEvent | MessageChannelsEvent] = asyncio.Queue()
         self._thread_messages: list[dict[str, Any]] = []
 
@@ -47,6 +56,7 @@ class SlackThreadWorkflow:
 
     @workflow.run
     async def run(self) -> None:
+        """Main workflow loop: waits for queued events and handles each one."""
         while True:
             await workflow.wait_condition(lambda: not self._pending_events.empty())
             while not self._pending_events.empty():
@@ -54,65 +64,85 @@ class SlackThreadWorkflow:
                 await self.handle_event(event)
 
     @workflow.signal
-    async def submit_app_mention_event(self, event: AppMentionEvent):
+    async def submit_message_channels_event(self, event: MessageChannelsEvent) -> None:
+        """Signal to enqueue a message channels event for processing."""
         await self._pending_events.put(event)
 
     @workflow.signal
-    async def submit_message_channels_event(self, event: MessageChannelsEvent):
+    async def submit_app_mention_event(self, event: AppMentionEvent) -> None:
+        """Signal to enqueue an app mention event for processing."""
         await self._pending_events.put(event)
 
-    async def handle_event(self, event: AppMentionEvent | MessageChannelsEvent):
-        thread = SlackMessageID(channel=event.channel, ts=event.reply_thread_ts)
-        event_message = SlackMessageID(channel=event.channel, ts=event.ts)
+    async def handle_event(self, event: AppMentionEvent | MessageChannelsEvent) -> None:
+        """Process a Slack event: fetch updates, dispatch to agents, and post reply."""
+        # add thinking reaction immediately
+        most_recent_ts = self._most_recent_ts or event.event_ts
+        event_message = SlackMessageID(channel=event.channel, ts=most_recent_ts)
 
-        # Set a spinner reaction on the message for which a reply is being generated
         await workflow.execute_activity(  # pyright: ignore[reportUnknownMemberType]
             slack_reactions_add,
             SlackReaction(message=event_message, name="spin"),
             start_to_close_timeout=timedelta(seconds=10),
         )
 
-        request = SlackConversationsRepliesRequest(channel=thread.channel, ts=thread.ts, oldest=self._most_recent_ts)
-        new_messages = await workflow.execute_activity(  # pyright: ignore[reportUnknownMemberType]
+        # Get new messages in the thread
+        request = SlackConversationsRepliesRequest(
+            channel=event.channel,
+            ts=event.reply_thread_ts,
+            oldest=most_recent_ts,
+        )
+        new_messages: list[dict[str, Any]] = await workflow.execute_activity(  # pyright: ignore[reportUnknownMemberType]
             slack_conversations_replies,
             request,
             start_to_close_timeout=timedelta(seconds=10),
         )
-        for message in new_messages:
-            self._thread_messages.append(message)
-        self._thread_messages.sort(key=lambda m: m["ts"])
+        self._thread_messages.extend(new_messages)
 
-        # TODO: Better-format the thread messages
+        # Get directive from the dispatch agent
         stringified_thread = json.dumps(self._thread_messages, indent=2)
-        result = await handle_user_request(stringified_thread)
+        dispatcher_result = await temporal_dispatch_agent.run(stringified_thread)
 
-        if isinstance(result, NoResponse):
+        if isinstance(dispatcher_result.output, NoResponse):
             return
 
-        slack_reply = SlackReply(thread=thread, content=result.response)
-
-        await asyncio.gather(
-            # Remove the spinner reaction
-            workflow.execute_activity(  # pyright: ignore[reportUnknownMemberType]
-                slack_reactions_remove,
-                SlackReaction(message=event_message, name="spin"),
-                start_to_close_timeout=timedelta(seconds=10),
-            ),
-            # Post the new response
-            workflow.execute_activity(  # pyright: ignore[reportUnknownMemberType]
-                slack_chat_post_message,
-                slack_reply,
-                start_to_close_timeout=timedelta(seconds=10),
-            ),
+        # remove thinking reaction before posting a message
+        await workflow.execute_activity(  # pyright: ignore[reportUnknownMemberType]
+            slack_reactions_remove,
+            SlackReaction(message=event_message, name="spin"),
+            start_to_close_timeout=timedelta(seconds=10),
         )
 
+        response: str | list[dict[str, Any]]
+        if isinstance(dispatcher_result.output, SlackResponse):
+            response = dispatcher_result.output.response
+        elif isinstance(dispatcher_result.output, GitHubRequest):
+            gh = dispatcher_result.output
+            gh_prompt = (
+                "GitHub request. "
+                f"Query: {gh.query}. "
+                f"Extra info: {gh.extra_info or 'N/A'}.\n"
+                f"Thread: {stringified_thread}"
+            )
+            result = await temporal_github_agent.run(gh_prompt)
+            response = result.output.response
+        elif isinstance(dispatcher_result.output, WebResearchRequest):
+            wr = dispatcher_result.output
+            temporal_web_research_agent = TemporalAgent(build_web_research_agent(), name="web_research_agent")
+            wr_prompt = (
+                "Web research request.\n"
+                f"Location: {wr.location}.\n"
+                f"Query: {wr.query}.\n"
+                f"Extra info: {wr.extra_info or 'N/A'}.\n"
+                f"Thread: {stringified_thread}"
+            )
+            result = await temporal_web_research_agent.run(wr_prompt)
+            response = result.output.response
+        else:
+            assert_never(dispatcher_result.output)
 
-@logfire.instrument
-async def handle_user_request(stringified_thread: str) -> NoResponse | SlackResponse | DinnerSuggestions:
-    dispatch_result = await temporal_dispatch_agent.run(stringified_thread)
-    if isinstance(request := dispatch_result.output, NoResponse | SlackResponse):
-        return request
-    dinner_choosing_result = await temporal_dinner_research_agent.run(
-        f"User info: {to_json(dispatch_result.output, indent=2).decode()}"
-    )
-    return dinner_choosing_result.output
+        # Post response
+        await workflow.execute_activity(  # pyright: ignore[reportUnknownMemberType]
+            slack_chat_post_message,
+            SlackReply(thread=event_message, content=response),
+            start_to_close_timeout=timedelta(seconds=10),
+        )
