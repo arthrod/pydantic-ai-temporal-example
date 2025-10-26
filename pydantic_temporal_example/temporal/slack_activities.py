@@ -1,5 +1,8 @@
 """Temporal activities integrating with Slack API (post, replies, reactions)."""
 
+# Enable postponed evaluation of annotations
+from __future__ import annotations
+
 # pyright: reportUnknownMemberType=false
 from typing import TYPE_CHECKING, Any, cast
 
@@ -21,22 +24,22 @@ if TYPE_CHECKING:
 @activity.defn
 @logfire.instrument
 async def slack_conversations_replies(request: SlackConversationsRepliesRequest) -> list[dict[str, Any]]:
-    """Fetch messages in a Slack thread, handling pagination via `has_more` and `next_cursor`."""
+    """Fetch messages in a Slack thread, handling pagination via `has_more` and `cursor`."""
     has_more = True
-    next_cursor = None
+    cursor = None
     messages: list[dict[str, Any]] = []
     while has_more:
         response = await _get_slack_client().conversations_replies(
             channel=request.channel,
             ts=request.ts,
             oldest=request.oldest,
-            next_cursor=next_cursor,
+            cursor=cursor,
         )
         response_messages = cast("list[dict[str, Any]]", response["messages"])
         messages.extend(response_messages)
-        has_more = response.get("has_more", False)
+        has_more = bool(response.get("has_more", False))
         if has_more:
-            next_cursor = response.get("response_metadata", {}).get("next_cursor")
+            cursor = response.get("response_metadata", {}).get("next_cursor") or None
 
     return messages
 
@@ -100,4 +103,4 @@ ALL_SLACK_ACTIVITIES = [
 
 def _get_slack_client() -> SlackClient:
     settings = get_settings()
-    return SlackClient(token=settings.slack_bot_token, timeout=60)
+    return SlackClient(token=settings.slack_bot_token.get_secret_value(), timeout=60)

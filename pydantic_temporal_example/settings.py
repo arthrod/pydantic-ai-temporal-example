@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     """Application configuration loaded from environment variables and `.env`."""
 
     jina_api_key: SecretStr | None = Field(default=None, alias="JINA_API_KEY")
-    slack_bot_token: str
-    slack_signing_secret: str
+    slack_bot_token: SecretStr = Field(alias="SLACK_BOT_TOKEN")
+    slack_signing_secret: SecretStr = Field(alias="SLACK_SIGNING_SECRET")
     temporal_host: str | None = None
     """`None` means start a local instance for development purposes"""
     temporal_port: int = 7233

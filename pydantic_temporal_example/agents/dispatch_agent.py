@@ -59,6 +59,8 @@ class WebResearchRequest:
     location: WebSearchUserLocation
     query: str
     extra_info: str | None
+    thread_messages: list[dict[str, Any]] | None = None
+    """Full Slack thread context for agent reference"""
 
 
 @dataclass
@@ -69,6 +71,8 @@ class GitHubRequest:
     type: Literal["github-request"]
     query: str
     extra_info: str | None
+    thread_messages: list[dict[str, Any]] | None = None
+    """Full Slack thread context for agent reference"""
 
 
 type DispatchResult = NoResponse | SlackResponse | WebResearchRequest | GitHubRequest

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -155,29 +156,48 @@ class JinaSearchTool:
             else:
                 # Use the standard Search API with GET request and SERP-style time filtering
                 enhanced_query = query + self._build_time_range_filter(time_range)
-                headers["X-Return-Format"] = "markdown"
 
-                # Use GET with query parameter
-                response = await client.get(
-                    "https://s.jina.ai/",
-                    headers=headers,
-                    params={"q": enhanced_query},
-                )
-                response.raise_for_status()
-                data = response.json()
-
-                # Parse results from the response
-                # Jina Search API returns results in 'data' field
-                raw_results = data.get("data", [])
-                results = [
-                    {
-                        "title": item.get("title", ""),
-                        "url": item.get("url", ""),
-                        "content": item.get("content", ""),
-                        "score": float(item.get("score", 0.0)),
-                    }
-                    for item in raw_results
-                ]
+                # Prefer JSON; fall back to text/markdown
+                backoff = 1.0
+                results = []
+                for attempt in range(3):
+                    try:
+                        response = await client.get(
+                            "https://s.jina.ai/",
+                            headers=headers,  # Accept: application/json already set
+                            params={"q": enhanced_query},
+                        )
+                        response.raise_for_status()
+                        try:
+                            data = response.json()
+                            raw_results = data.get("data", [])
+                            results = [
+                                {
+                                    "title": item.get("title", ""),
+                                    "url": item.get("url", ""),
+                                    "content": item.get("content", ""),
+                                    "score": float(item.get("score", 0.0)),
+                                }
+                                for item in raw_results
+                            ]
+                            break
+                        except Exception:
+                            # Treat full body as a single markdown result
+                            results = [
+                                {
+                                    "title": f"Search Result for: {query}",
+                                    "url": "",
+                                    "content": response.text,
+                                    "score": 0.0,
+                                }
+                            ]
+                            break
+                    except httpx.HTTPStatusError as e:
+                        if e.response.status_code == 429 and attempt < 2:
+                            await asyncio.sleep(backoff)
+                            backoff *= 2
+                            continue
+                        raise
 
         return jina_search_ta.validate_python(results)
 
