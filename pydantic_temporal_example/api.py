@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends
 from starlette.responses import JSONResponse, Response
 from temporalio.exceptions import TemporalError
 
+from pydantic_temporal_example.config import get_settings
 from pydantic_temporal_example.dependencies import TemporalClient, get_slack_bot_user_id, get_temporal_client
 from pydantic_temporal_example.models import (
     AppMentionEvent,
@@ -16,7 +17,6 @@ from pydantic_temporal_example.models import (
     SlackEventsAPIBody,
     URLVerificationEvent,
 )
-from pydantic_temporal_example.settings import get_settings
 from pydantic_temporal_example.slack import get_verified_slack_events_body
 from pydantic_temporal_example.temporal.workflows import SlackThreadWorkflow
 

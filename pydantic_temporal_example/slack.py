@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException
 
+from pydantic_temporal_example.config import get_settings
 from pydantic_temporal_example.models import SlackEventsAPIBody, SlackEventsAPIBodyAdapter, URLVerificationEvent
-from pydantic_temporal_example.settings import get_settings
 
 if TYPE_CHECKING:
     from starlette.requests import Request
