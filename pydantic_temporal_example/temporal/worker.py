@@ -71,4 +71,3 @@ async def temporal_worker(
                 ],
             ),
         )
-        yield worker

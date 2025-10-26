@@ -18,9 +18,8 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
-
-    slack_bot_token: str = Field(min_length=1, description="Slack bot OAuth token")
-    slack_signing_secret: str = Field(min_length=1, description="Slack request signing secret")
+    slack_bot_token: str | None = None
+    slack_signing_secret: str | None = None
     temporal_host: str | None = None
     temporal_port: int = Field(default=7233, ge=1, le=65535, description="Temporal server port")
     temporal_task_queue: str = "agent-task-queue"
