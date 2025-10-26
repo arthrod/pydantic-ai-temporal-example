@@ -32,6 +32,5 @@ async def build_temporal_client(host: str | None = None, port: int | None = None
         return instance
 
     return await TemporalClient.connect(
-        f"{temporal_host}:{temporal_port}",
-        plugins=[PydanticAIPlugin(), LogfirePlugin(_setup_logfire)],
+        f"{host}:{resolved_port}", plugins=[PydanticAIPlugin(), LogfirePlugin(_setup_logfire)]
     )
