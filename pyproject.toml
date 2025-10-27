@@ -18,6 +18,8 @@ dependencies = [
     "pydantic-settings>=2.4.0",
     "httpx>=0.27",
     "uvloop>=0.20",
+    "pygithub>=2.8.1",
+    "pydantic-ai-claude-code>=0.8.1",
 ]
 
 [project.scripts]

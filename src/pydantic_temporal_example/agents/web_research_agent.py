@@ -6,16 +6,18 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from pydantic import with_config
-from pydantic_ai import (
-    Agent,
-    NativeOutput,
-)
+from pydantic_ai import Agent, NativeOutput
 
 from pydantic_temporal_example.settings import get_settings
 from pydantic_temporal_example.tools import jina_search_tool
 
 if TYPE_CHECKING:
     from pydantic_temporal_example.agents.dispatch_agent import WebResearchRequest
+
+from pydantic_ai_claude_code import ClaudeCodeProvider
+
+provider = ClaudeCodeProvider({'use_sandbox_runtime': False})
+agent = Agent('claude-code:sonnet')
 
 
 @dataclass
@@ -38,11 +40,11 @@ def build_web_research_agent() -> Agent[WebResearchRequest, WebResearchResponse]
     """Construct the web research agent, validating `JINA_API_KEY` at build time."""
     settings = get_settings()
     if settings.jina_api_key is None:
-        msg = "JINA_API_KEY not set"
+        msg = 'JINA_API_KEY not set'
         raise ValueError(msg)
     api_key = settings.jina_api_key.get_secret_value()
     return Agent[WebResearchRequest, WebResearchResponse](
-        model="openai-responses:gpt-5-mini",
+        model='openai-responses:gpt-5-mini',
         output_type=NativeOutput(WebResearchResponse),
         instructions="""You are a web research assistant.
 
