@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from slack_sdk.web.async_client import AsyncWebClient as SlackClient
 
-from pydantic_temporal_example.settings import get_settings
+from pydantic_temporal_example.config import get_settings
 from pydantic_temporal_example.temporal.client import build_temporal_client
 
 if TYPE_CHECKING:
@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
     from starlette.requests import Request
     from temporalio.client import Client as TemporalClient
-
 
 @asynccontextmanager
 async def lifespan(_server: FastAPI) -> AsyncIterator[dict[str, Any]]:

@@ -6,5 +6,6 @@ from .jina_search import (
     jina_search_ta,
     jina_search_tool,
 )
+from .pygithub import GitHubConn
 
-__all__ = ["JinaSearchResult", "JinaSearchTool", "jina_search_ta", "jina_search_tool"]
+__all__ = ['GitHubConn', 'JinaSearchResult', 'JinaSearchTool', 'jina_search_ta', 'jina_search_tool']

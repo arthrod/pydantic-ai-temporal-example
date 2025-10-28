@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     GITHUB_PAT: str = Field(default='', validation_alias=AliasChoices('GITHUB_PAT'))
     GITHUB_ORG: str = Field(default='arthrod', validation_alias=AliasChoices('GITHUB_ORG'))
     GITHUB_AGENT_MODEL: str = Field(default='claude-code:sonnet', validation_alias=AliasChoices('GITHUB_AGENT_MODEL'))
+    LOGFIRE_API_KEY: str = Field(default='', validation_alias=AliasChoices('LOGFIRE_API_KEY'))
 
 
 @cache
@@ -41,8 +42,8 @@ def get_settings() -> Settings:
     """
     return Settings()
 
-
 JINA_API_KEY = get_settings().JINA_API_KEY
 GITHUB_PAT = get_settings().GITHUB_PAT
 GITHUB_ORG = get_settings().GITHUB_ORG
-GITHUB_AGENT_MODEL: str
+GITHUB_AGENT_MODEL = get_settings().GITHUB_AGENT_MODEL
+LOGFIRE_API_KEY = get_settings().LOGFIRE_API_KEY

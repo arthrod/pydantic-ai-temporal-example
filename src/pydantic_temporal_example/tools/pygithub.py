@@ -1,15 +1,12 @@
 from typing import Any
 
+import logfire
 from github import Auth, Github
 from github.ContentFile import ContentFile
 from github.PullRequest import PullRequest
 from github.Repository import Repository
-import logging
 
 from ..config import GITHUB_ORG, GITHUB_PAT
-
-# Set up logging
-logger = logging.getLogger(__name__)
 
 
 class GitHubConn:
@@ -44,12 +41,12 @@ class GitHubConn:
         """
         if not repo_name or not repo_name.strip():
             raise ValueError('Repository name cannot be empty')
-        
+
         full_repo_name = f'{self.organization}/{repo_name}'
         try:
             return self.g.get_repo(full_repo_name)
         except Exception as e:
-            logger.error(f"Error accessing repository {full_repo_name}: {str(e)}")
+            logfire.error(f'Error accessing repository {full_repo_name}: {e!s}')
             raise
 
     def get_repo_files(self, repo_name: str, path: str = '') -> list[ContentFile]:
@@ -69,7 +66,7 @@ class GitHubConn:
                 return contents
             return [contents]
         except Exception as e:
-            logger.error(f"Error getting files from path '{path}' in repository {repo_name}: {str(e)}")
+            logfire.error(f"Error getting files from path '{path}' in repository {repo_name}: {e!s}")
             raise
 
     def get_pull_request(self, repo_name: str, pr_number: int) -> PullRequest:
@@ -86,7 +83,7 @@ class GitHubConn:
             repo = self.get_repo(repo_name)
             return repo.get_pull(pr_number)
         except Exception as e:
-            logger.error(f"Error getting pull request #{pr_number} from repository {repo_name}: {str(e)}")
+            logfire.error(f'Error getting pull request #{pr_number} from repository {repo_name}: {e!s}')
             raise
 
     def get_pr_comments(self, repo_name: str, pr_number: int) -> list[dict[str, Any]]:
@@ -127,7 +124,7 @@ class GitHubConn:
 
             return issue_comments + review_comments
         except Exception as e:
-            logger.error(f"Error getting comments for pull request #{pr_number} from repository {repo_name}: {str(e)}")
+            logfire.error(f'Error getting comments for pull request #{pr_number} from repository {repo_name}: {e!s}')
             raise
 
     def get_branches(self, repo_name: str) -> list[dict[str, Any]]:
@@ -146,5 +143,33 @@ class GitHubConn:
                 for branch in repo.get_branches()
             ]
         except Exception as e:
-            logger.error(f"Error getting branches from repository {repo_name}: {str(e)}")
+            logfire.error(f'Error getting branches from repository {repo_name}: {e!s}')
+            raise
+
+    def list_pull_requests(self, repo_name: str, state: str = 'all') -> list[dict[str, Any]]:
+        """List all pull requests in a repository.
+
+        Args:
+            repo_name: Repository name (without organization)
+            state: PR state filter ('open', 'closed', or 'all')
+
+        Returns:
+            List of PR dictionaries with number, title, state, and author
+        """
+        try:
+            repo = self.get_repo(repo_name)
+            prs = [
+                {
+                    'number': pr.number,
+                    'title': pr.title,
+                    'state': pr.state,
+                    'author': pr.user.login,
+                    'created_at': pr.created_at.isoformat(),
+                    'updated_at': pr.updated_at.isoformat(),
+                }
+                for pr in repo.get_pulls(state=state)
+            ]
+            return prs
+        except Exception as e:
+            logfire.error(f'Error listing pull requests from repository {repo_name}: {e!s}')
             raise

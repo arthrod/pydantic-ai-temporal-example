@@ -13,8 +13,9 @@ from pydantic import TypeAdapter
 from pydantic_ai.tools import Tool
 from typing_extensions import TypedDict
 
-__all__ = ("JinaSearchResult", "JinaSearchTool", "jina_search_ta", "jina_search_tool")
+from pydantic_temporal_example import setup_logfire
 
+logfire = setup_logfire()
 
 class JinaSearchResult(TypedDict):
     """A Jina search result.
@@ -218,3 +219,27 @@ def jina_search_tool(api_key: str) -> Tool[Any]:
         name="jina_search",
         description="Searches Jina for the given query and returns the results.",
     )
+
+
+async def jina_search(
+    query: str,
+    max_results: int = 5,
+    search_deep: Literal['basic', 'advanced'] = 'basic',
+    time_range: Literal['day', 'week', 'month', 'year', 'd', 'w', 'm', 'y'] | None = None,
+) -> list[JinaSearchResult]:
+    """Standalone function to search Jina for the given query.
+
+    Args:
+        query: The search query to execute with Jina.
+        max_results: Maximum number of results to return.
+        search_deep: The depth of the search.
+        time_range: The time range back from the current date to filter results.
+
+    Returns:
+        The search results, limited to max_results.
+    """
+    from pydantic_temporal_example.config import JINA_API_KEY
+
+    tool = JinaSearchTool(api_key=JINA_API_KEY)
+    results = await tool(query=query, search_deep=search_deep, time_range=time_range)
+    return results[:max_results]

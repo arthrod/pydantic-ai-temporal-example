@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Annotated, Any, assert_never
 
-import logfire
 from fastapi import APIRouter, Depends
 from starlette.responses import JSONResponse, Response
 from temporalio.exceptions import TemporalError
 
+from pydantic_temporal_example import setup_logfire
 from pydantic_temporal_example.config import get_settings
 from pydantic_temporal_example.dependencies import TemporalClient, get_slack_bot_user_id, get_temporal_client
 from pydantic_temporal_example.models import (
@@ -19,6 +19,8 @@ from pydantic_temporal_example.models import (
 )
 from pydantic_temporal_example.slack import get_verified_slack_events_body
 from pydantic_temporal_example.temporal.workflows import SlackThreadWorkflow
+
+logfire = setup_logfire()
 
 router = APIRouter()
 
@@ -35,7 +37,7 @@ async def handle_event(
 ) -> Response:
     """This should be used as the endpoint for the Slack Events API for your bot."""
     if isinstance(body, dict):
-        logfire.warn("Unhandled Slack event", body=body)
+        logfire.warning('Unhandled Slack event', body=body)
     elif isinstance(body, URLVerificationEvent):
         return await handle_url_verification_event(body)
     elif isinstance(body, SlackEventsAPIBody):

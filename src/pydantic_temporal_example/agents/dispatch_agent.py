@@ -10,8 +10,13 @@ from pydantic_ai import Agent, WebSearchUserLocation
 from pydantic_ai.common_tools.duckduckgo import duckduckgo_search_tool  # pyright: ignore[reportUnknownVariableType]
 from pydantic_ai_claude_code import ClaudeCodeProvider
 
+from pydantic_temporal_example import setup_logfire
+
+from ..config import GITHUB_AGENT_MODEL
+
+logfire = setup_logfire()
 provider = ClaudeCodeProvider({'use_sandbox_runtime': False})
-agent = Agent('claude-code:sonnet')
+dispatch_agent = Agent(GITHUB_AGENT_MODEL)
 
 
 @dataclass
@@ -82,7 +87,7 @@ class GitHubRequest:
 type DispatchResult = NoResponse | SlackResponse | WebResearchRequest | GitHubRequest
 
 dispatch_agent = Agent(
-    model='openai-responses:gpt-5-mini',
+    model=GITHUB_AGENT_MODEL,
     output_type=[NoResponse, SlackResponse, WebResearchRequest, GitHubRequest],
     instructions="""
     You are a dispatch agent in an application designed to help a user with their requests.

@@ -11,9 +11,7 @@ from pydantic_temporal_example.temporal.worker import temporal_worker
 app = FastAPI(lifespan=lifespan)
 app.include_router(router)
 
-logfire.configure(service_name="app")
-logfire.instrument_pydantic_ai()
-logfire.instrument_httpx(capture_all=True)
+
 logfire.instrument_fastapi(app)
 
 

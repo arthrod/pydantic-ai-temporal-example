@@ -6,18 +6,20 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from pydantic import with_config
-from pydantic_ai import Agent, NativeOutput
+from pydantic_ai import Agent
 
-from pydantic_temporal_example.settings import get_settings
+from pydantic_temporal_example.config import get_settings
 from pydantic_temporal_example.tools import jina_search_tool
 
 if TYPE_CHECKING:
-    from pydantic_temporal_example.agents.dispatch_agent import WebResearchRequest
+    pass
+from pydantic_temporal_example import setup_logfire
 
+logfire = setup_logfire()
 from pydantic_ai_claude_code import ClaudeCodeProvider
 
 provider = ClaudeCodeProvider({'use_sandbox_runtime': False})
-agent = Agent('claude-code:sonnet')
+web_research_agent = Agent('claude-code:sonnet')
 
 
 @dataclass
@@ -36,17 +38,19 @@ class WebResearchResponse:
 # Settings are fetched in the builder to avoid import-time side effects.
 
 
-def build_web_research_agent() -> Agent[WebResearchRequest, WebResearchResponse]:
+def build_web_research_agent() -> Agent[None, WebResearchResponse] | None:
     """Construct the web research agent, validating `JINA_API_KEY` at build time."""
     settings = get_settings()
-    if settings.jina_api_key is None:
-        msg = 'JINA_API_KEY not set'
-        raise ValueError(msg)
-    api_key = settings.jina_api_key.get_secret_value()
-    return Agent[WebResearchRequest, WebResearchResponse](
-        model='openai-responses:gpt-5-mini',
-        output_type=NativeOutput(WebResearchResponse),
-        instructions="""You are a web research assistant.
+    jina_api_key = settings.JINA_API_KEY
+
+    if jina_api_key == '':
+        return None
+
+    return Agent[None, WebResearchResponse](
+        model=settings.GITHUB_AGENT_MODEL,
+        output_type=WebResearchResponse,
+        tools=[jina_search_tool(jina_api_key)],
+        system_prompt="""You are a web research assistant.
 
     You will receive a WebResearchRequest with:
     - location: User's geographic location for local search
@@ -58,5 +62,4 @@ def build_web_research_agent() -> Agent[WebResearchRequest, WebResearchResponse]
     - Use tools for current info; cite sources and dates inline.
     - Return concise Markdown or valid Slack Block Kit blocks.
     """,
-        tools=[jina_search_tool(api_key)],
     )

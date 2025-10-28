@@ -7,10 +7,12 @@ from pydantic_ai.durable_exec.temporal import AgentPlugin
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
-from pydantic_temporal_example.settings import get_settings
+from pydantic_temporal_example.config import get_settings
 from pydantic_temporal_example.temporal.client import build_temporal_client
+from pydantic_temporal_example.temporal.github_activities import ALL_GITHUB_ACTIVITIES
 from pydantic_temporal_example.temporal.slack_activities import ALL_SLACK_ACTIVITIES
 from pydantic_temporal_example.temporal.workflows import (
+    PeriodicGitHubPRCheckWorkflow,
     SlackThreadWorkflow,
     temporal_dispatch_agent,
     temporal_github_agent,
@@ -19,7 +21,6 @@ from pydantic_temporal_example.temporal.workflows import (
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
-
 
 @asynccontextmanager
 async def temporal_worker(
@@ -62,12 +63,14 @@ async def temporal_worker(
             Worker(
                 client,
                 task_queue=task_queue,
-                workflows=[SlackThreadWorkflow],
-                activities=ALL_SLACK_ACTIVITIES,
+                workflows=[SlackThreadWorkflow, PeriodicGitHubPRCheckWorkflow],
+                activities=ALL_SLACK_ACTIVITIES + ALL_GITHUB_ACTIVITIES,
                 plugins=[
                     AgentPlugin(temporal_dispatch_agent),
                     AgentPlugin(temporal_github_agent),
                     AgentPlugin(temporal_web_research_agent),
                 ],
-            ),
+            )
         )
+
+        yield worker

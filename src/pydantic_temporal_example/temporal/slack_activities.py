@@ -6,12 +6,16 @@ from __future__ import annotations
 # pyright: reportUnknownMemberType=false
 from typing import TYPE_CHECKING, Any, cast
 
-import logfire
 from slack_sdk.web.async_client import AsyncWebClient as SlackClient
 from temporalio import activity
 
 from pydantic_temporal_example.config import get_settings
-from pydantic_temporal_example.models import SlackConversationsRepliesRequest, SlackMessageID, SlackReaction, SlackReply
+from pydantic_temporal_example.models import (
+    SlackConversationsRepliesRequest,
+    SlackMessageID,
+    SlackReaction,
+    SlackReply,
+)
 
 if TYPE_CHECKING:
     from pydantic_temporal_example.models import (
@@ -20,6 +24,8 @@ if TYPE_CHECKING:
         SlackReaction,
         SlackReply,
     )
+
+import logfire
 
 
 @activity.defn
