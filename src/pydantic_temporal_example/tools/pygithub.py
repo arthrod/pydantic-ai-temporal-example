@@ -32,10 +32,7 @@ class GitHubConn:
         self.organization = organization or get_github_org()
 
         if not self.organization or not self.organization.strip():
-            msg = (
-                "GitHub organization must be set via GITHUB_ORG environment variable "
-                "or constructor argument"
-            )
+            msg = "GitHub organization must be set via GITHUB_ORG environment variable or constructor argument"
             raise ValueError(msg)
 
     def get_repo(self, repo_name: str) -> Repository:
