@@ -17,4 +17,4 @@ def setup_logfire() -> logfire.Logfire:
 
 instance_logfire = setup_logfire()
 
-__all__ = ['GITHUB_AGENT_MODEL', 'GITHUB_ORG', 'GITHUB_PAT', 'JINA_API_KEY', 'instance_logfire']
+__all__ = ["GITHUB_AGENT_MODEL", "GITHUB_ORG", "GITHUB_PAT", "JINA_API_KEY", "instance_logfire"]

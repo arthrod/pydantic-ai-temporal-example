@@ -1,7 +1,7 @@
 """Temporal worker setup orchestrating workflows and agent plugins for dev."""
 
+from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
-from typing import TYPE_CHECKING
 
 from pydantic_ai.durable_exec.temporal import AgentPlugin
 from temporalio.testing import WorkflowEnvironment
@@ -19,8 +19,6 @@ from pydantic_temporal_example.temporal.workflows import (
     temporal_web_research_agent,
 )
 
-if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
 
 @asynccontextmanager
 async def temporal_worker(
@@ -51,7 +49,8 @@ async def temporal_worker(
 
     # Validate task_queue
     if not task_queue or not task_queue.strip():
-        raise ValueError("task_queue cannot be empty")
+        msg = "task_queue cannot be empty"
+        raise ValueError(msg)
 
     async with AsyncExitStack() as stack:
         if host is None:
@@ -70,7 +69,7 @@ async def temporal_worker(
                     AgentPlugin(temporal_github_agent),
                     AgentPlugin(temporal_web_research_agent),
                 ],
-            )
+            ),
         )
 
         yield worker

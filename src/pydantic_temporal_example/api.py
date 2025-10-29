@@ -37,7 +37,7 @@ async def handle_event(
 ) -> Response:
     """This should be used as the endpoint for the Slack Events API for your bot."""
     if isinstance(body, dict):
-        logfire.warning('Unhandled Slack event', body=body)
+        logfire.warning("Unhandled Slack event", body=body)
     elif isinstance(body, URLVerificationEvent):
         return await handle_url_verification_event(body)
     elif isinstance(body, SlackEventsAPIBody):

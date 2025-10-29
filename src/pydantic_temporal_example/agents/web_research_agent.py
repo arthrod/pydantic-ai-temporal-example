@@ -3,23 +3,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pydantic import with_config
 from pydantic_ai import Agent
 
+from pydantic_temporal_example import setup_logfire
 from pydantic_temporal_example.config import get_settings
 from pydantic_temporal_example.tools import jina_search_tool
 
-if TYPE_CHECKING:
-    pass
-from pydantic_temporal_example import setup_logfire
-
 logfire = setup_logfire()
-from pydantic_ai_claude_code import ClaudeCodeProvider
+from pydantic_ai_claude_code import ClaudeCodeModel, ClaudeCodeProvider
 
-provider = ClaudeCodeProvider({'use_sandbox_runtime': False})
-web_research_agent = Agent('claude-code:sonnet')
+provider = ClaudeCodeProvider({"use_sandbox_runtime": False})
+instance_model = ClaudeCodeModel("opus", provider=provider)
+web_research_agent = Agent(model=instance_model)
 
 
 @dataclass
@@ -43,11 +41,11 @@ def build_web_research_agent() -> Agent[None, WebResearchResponse] | None:
     settings = get_settings()
     jina_api_key = settings.JINA_API_KEY
 
-    if jina_api_key == '':
+    if jina_api_key == "":
         return None
 
     return Agent[None, WebResearchResponse](
-        model=settings.GITHUB_AGENT_MODEL,
+        model=instance_model,
         output_type=WebResearchResponse,
         tools=[jina_search_tool(jina_api_key)],
         system_prompt="""You are a web research assistant.

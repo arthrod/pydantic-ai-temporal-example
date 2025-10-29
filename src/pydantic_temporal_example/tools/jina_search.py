@@ -190,7 +190,7 @@ class JinaSearchTool:
                                     "url": "",
                                     "content": response.text,
                                     "score": 0.0,
-                                }
+                                },
                             ]
                             break
                     except httpx.HTTPStatusError as e:
@@ -224,8 +224,8 @@ def jina_search_tool(api_key: str) -> Tool[Any]:
 async def jina_search(
     query: str,
     max_results: int = 5,
-    search_deep: Literal['basic', 'advanced'] = 'basic',
-    time_range: Literal['day', 'week', 'month', 'year', 'd', 'w', 'm', 'y'] | None = None,
+    search_deep: Literal["basic", "advanced"] = "basic",
+    time_range: Literal["day", "week", "month", "year", "d", "w", "m", "y"] | None = None,
 ) -> list[JinaSearchResult]:
     """Standalone function to search Jina for the given query.
 

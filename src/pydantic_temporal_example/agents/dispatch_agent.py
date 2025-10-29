@@ -7,16 +7,14 @@ from typing import Any, Literal
 
 from pydantic import with_config
 from pydantic_ai import Agent, WebSearchUserLocation
-from pydantic_ai.common_tools.duckduckgo import duckduckgo_search_tool  # pyright: ignore[reportUnknownVariableType]
+from pydantic_ai.common_tools.duckduckgo import duckduckgo_search_tool
 from pydantic_ai_claude_code import ClaudeCodeProvider
 
 from pydantic_temporal_example import setup_logfire
-
-from ..config import GITHUB_AGENT_MODEL
+from pydantic_temporal_example.config import GITHUB_AGENT_MODEL
 
 logfire = setup_logfire()
-provider = ClaudeCodeProvider({'use_sandbox_runtime': False})
-dispatch_agent = Agent(GITHUB_AGENT_MODEL)
+provider = ClaudeCodeProvider({"use_sandbox_runtime": False})
 
 
 @dataclass
@@ -30,7 +28,7 @@ class NoResponse:
     If you select this, no response to the latest messages in the thread will be sent.
     """
 
-    type: Literal['no-response']
+    type: Literal["no-response"]
 
 
 @dataclass
@@ -46,7 +44,7 @@ class SlackResponse:
     provide that clarification under the assumption that they will subsequently respond to your initial question.
     """
 
-    type: Literal['slack-response']
+    type: Literal["slack-response"]
     response: str | list[dict[str, Any]]
     """
     The response to show to the user. This should either be a markdown text string, or valid Slack blockkit blocks
@@ -64,7 +62,7 @@ class WebResearchRequest:
     additional information.
     """
 
-    type: Literal['web-research-request']
+    type: Literal["web-research-request"]
     location: WebSearchUserLocation
     query: str
     extra_info: str | None
@@ -77,7 +75,7 @@ class WebResearchRequest:
 class GitHubRequest:
     """A marker that indicates that you are ready to delegate to the github agent."""
 
-    type: Literal['github-request']
+    type: Literal["github-request"]
     query: str
     extra_info: str | None
     thread_messages: list[dict[str, Any]] | None = None

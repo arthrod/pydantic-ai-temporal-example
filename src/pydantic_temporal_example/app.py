@@ -2,6 +2,7 @@
 
 import logfire
 import uvicorn
+import uvloop
 from fastapi import FastAPI
 
 from pydantic_temporal_example.api import router
@@ -18,12 +19,6 @@ logfire.instrument_fastapi(app)
 async def main() -> None:
     """FastAPI app setup and local dev entrypoint with Temporal worker."""
     # Optional: install uvloop (no-op on Windows)
-    try:
-        import uvloop  # type: ignore
-
-        uvloop.install()
-    except Exception:
-        pass
 
     async with temporal_worker():
         host = "0.0.0.0"  # Expose to all interfaces for container access
@@ -34,6 +29,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    import asyncio
-
-    asyncio.run(main())
+    uvloop.run(main())

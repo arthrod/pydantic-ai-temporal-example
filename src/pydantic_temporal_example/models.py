@@ -1,4 +1,4 @@
-"""Pydantic models for Slack events, replies, and request payloads."""
+"""Pydantic models for Slack events, CLI prompts, and request payloads."""
 
 from __future__ import annotations
 
@@ -113,3 +113,29 @@ class SlackConversationsRepliesRequest(BaseModel):
     channel: str
     ts: str
     oldest: str | None  # only include messages after this unix timestamp
+
+
+# CLI Models
+
+
+class CLIPromptEvent(BaseModel):
+    """User prompt input from CLI interface."""
+
+    prompt: str
+    timestamp: str
+    session_id: str | None = None
+
+
+class CLIResponse(BaseModel):
+    """Response payload to return to CLI interface."""
+
+    content: str | list[dict[str, Any]]
+    metadata: dict[str, Any] | None = None
+
+    @property
+    def text(self) -> str:
+        """Format response as plain text for CLI display."""
+        if isinstance(self.content, str):
+            return self.content
+        # Convert structured content to readable text
+        return str(self.content)

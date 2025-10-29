@@ -17,17 +17,17 @@ class Settings(BaseSettings):
         TEMPORAL_TASK_QUEUE: Task queue name (default: "agent-task-queue")
     """
 
-    model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', extra='ignore')
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
     slack_bot_token: str | None = None
     slack_signing_secret: str | None = None
     temporal_host: str | None = None
-    temporal_port: int = Field(default=7233, ge=1, le=65535, description='Temporal server port')
-    temporal_task_queue: str = 'agent-task-queue'
-    JINA_API_KEY: str = Field(default='', validation_alias=AliasChoices('JINA_API_KEY'))
-    GITHUB_PAT: str = Field(default='', validation_alias=AliasChoices('GITHUB_PAT'))
-    GITHUB_ORG: str = Field(default='arthrod', validation_alias=AliasChoices('GITHUB_ORG'))
-    GITHUB_AGENT_MODEL: str = Field(default='claude-code:sonnet', validation_alias=AliasChoices('GITHUB_AGENT_MODEL'))
-    LOGFIRE_API_KEY: str = Field(default='', validation_alias=AliasChoices('LOGFIRE_API_KEY'))
+    temporal_port: int = Field(default=7233, ge=1, le=65535, description="Temporal server port")
+    temporal_task_queue: str = "agent-task-queue"
+    JINA_API_KEY: str = Field(default="", validation_alias=AliasChoices("JINA_API_KEY"))
+    GITHUB_PAT: str = Field(default="", validation_alias=AliasChoices("GITHUB_PAT"))
+    GITHUB_ORG: str = Field(default="arthrod", validation_alias=AliasChoices("GITHUB_ORG"))
+    GITHUB_AGENT_MODEL: str = Field(default="claude-code:sonnet", validation_alias=AliasChoices("GITHUB_AGENT_MODEL"))
+    LOGFIRE_API_KEY: str = Field(default="", validation_alias=AliasChoices("LOGFIRE_API_KEY"))
 
 
 @cache
