@@ -23,10 +23,20 @@ class GitHubConn:
 
         Args:
             organization: GitHub organization name (defaults to GITHUB_ORG from config)
+
+        Raises:
+            ValueError: If organization is empty or not set in environment
         """
         auth = Auth.Token(get_github_pat())
         self.g = Github(auth=auth)
         self.organization = organization or get_github_org()
+
+        if not self.organization or not self.organization.strip():
+            msg = (
+                "GitHub organization must be set via GITHUB_ORG environment variable "
+                "or constructor argument"
+            )
+            raise ValueError(msg)
 
     def get_repo(self, repo_name: str) -> Repository:
         """Get a repository by name.
@@ -49,7 +59,13 @@ class GitHubConn:
         try:
             return self.g.get_repo(full_repo_name)
         except Exception as e:
-            logfire.error(f"Error accessing repository {full_repo_name}: {e!s}")
+            logfire.error(
+                "Error accessing repository",
+                organization=self.organization,
+                repo_name=repo_name,
+                full_repo_name=full_repo_name,
+                error=str(e),
+            )
             raise  # Re-raise original exception
 
     def get_repo_files(self, repo_name: str, path: str = "") -> list[ContentFile]:
@@ -65,11 +81,9 @@ class GitHubConn:
         try:
             repo = self.get_repo(repo_name)
             contents = repo.get_contents(path)
-            if isinstance(contents, list):
-                return contents
-            return [contents]
+            return contents if isinstance(contents, list) else [contents]
         except Exception as e:
-            logfire.error(f"Error getting files from path '{path}' in repository {repo_name}: {e!s}")
+            logfire.error("Error getting files from repository", repo_name=repo_name, path=path, error=str(e))
             raise
 
     def get_pull_request(self, repo_name: str, pr_number: int) -> PullRequest:
@@ -86,7 +100,12 @@ class GitHubConn:
             repo = self.get_repo(repo_name)
             return repo.get_pull(pr_number)
         except Exception as e:
-            logfire.error(f"Error getting pull request #{pr_number} from repository {repo_name}: {e!s}")
+            logfire.error(
+                "Error getting pull request from repository",
+                repo_name=repo_name,
+                pr_number=pr_number,
+                error=str(e),
+            )
             raise
 
     def get_pr_comments(self, repo_name: str, pr_number: int) -> list[dict[str, Any]]:
@@ -127,7 +146,12 @@ class GitHubConn:
 
             return issue_comments + review_comments
         except Exception as e:
-            logfire.error(f"Error getting comments for pull request #{pr_number} from repository {repo_name}: {e!s}")
+            logfire.error(
+                "Error getting comments for pull request",
+                repo_name=repo_name,
+                pr_number=pr_number,
+                error=str(e),
+            )
             raise
 
     def get_branches(self, repo_name: str) -> list[dict[str, Any]]:
@@ -146,7 +170,7 @@ class GitHubConn:
                 for branch in repo.get_branches()
             ]
         except Exception as e:
-            logfire.error(f"Error getting branches from repository {repo_name}: {e!s}")
+            logfire.error("Error getting branches from repository", repo_name=repo_name, error=str(e))
             raise
 
     def list_pull_requests(self, repo_name: str, state: str = "all") -> list[dict[str, Any]]:
@@ -173,5 +197,5 @@ class GitHubConn:
                 for pr in repo.get_pulls(state=state)
             ]
         except Exception as e:
-            logfire.error(f"Error listing pull requests from repository {repo_name}: {e!s}")
+            logfire.error("Error listing pull requests from repository", repo_name=repo_name, error=str(e))
             raise

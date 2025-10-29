@@ -14,6 +14,41 @@ from pydantic_temporal_example.config import get_settings
 from pydantic_temporal_example.temporal.client import build_temporal_client
 
 
+async def _initialize_slack_client(token: str) -> tuple[SlackClient, str]:
+    """Initialize Slack client and retrieve bot user ID.
+
+    Args:
+        token: Slack bot token
+
+    Returns:
+        Tuple of (SlackClient, bot_user_id)
+
+    Raises:
+        Exception: If Slack authentication fails
+    """
+    slack_client = SlackClient(token=token, timeout=60)
+    slack_bot_user_id = cast("str", (await slack_client.auth_test())["user_id"])  # pyright: ignore[reportUnknownMemberType]
+    logfire.info("Slack client initialized successfully")
+    return slack_client, slack_bot_user_id
+
+
+async def _close_client_safely(client: TemporalClient | SlackClient | None, client_name: str) -> None:
+    """Safely close a client with error handling.
+
+    Args:
+        client: Client to close (Temporal or Slack)
+        client_name: Name of the client for logging
+    """
+    if client is None:
+        return
+    try:
+        await client.close()
+        logfire.info(f"{client_name} closed successfully")
+    except BaseException:  # noqa: BLE001
+        # Catch all exceptions during cleanup to avoid suppressing original errors
+        logfire.exception(f"Error closing {client_name}")
+
+
 @asynccontextmanager
 async def lifespan(_server: FastAPI) -> AsyncIterator[dict[str, Any]]:
     """Initialize shared app state (Temporal client, Slack bot user id) for FastAPI lifespan."""
@@ -25,54 +60,23 @@ async def lifespan(_server: FastAPI) -> AsyncIterator[dict[str, Any]]:
     try:
         # Initialize Slack client (optional)
         if settings.slack_bot_token:
-            slack_client = SlackClient(token=settings.slack_bot_token, timeout=60)
-
-            try:
-                slack_bot_user_id = cast("str", (await slack_client.auth_test())["user_id"])  # pyright: ignore[reportUnknownMemberType]
-                logfire.info("Slack client initialized successfully")
-            except Exception:
-                logfire.exception("Failed to authenticate Slack client")
-                raise
+            slack_client, slack_bot_user_id = await _initialize_slack_client(settings.slack_bot_token)
         else:
             logfire.info("Slack token not provided, Slack integration disabled")
 
         # Initialize Temporal client
-        try:
-            temporal_client = await build_temporal_client()
-        except Exception:
-            logfire.exception("Failed to build Temporal client")
-            raise
+        temporal_client = await build_temporal_client()
 
         try:
             yield {"temporal_client": temporal_client, "slack_bot_user_id": slack_bot_user_id}
         finally:
             # Cleanup: close both clients
-            if temporal_client is not None:
-                try:
-                    await temporal_client.close()
-                    logfire.info("Temporal client closed successfully")
-                except Exception:
-                    logfire.exception("Error closing Temporal client")
-
-            if slack_client is not None:
-                try:
-                    await slack_client.close()
-                    logfire.info("Slack client closed successfully")
-                except Exception:
-                    logfire.exception("Error closing Slack client")
-    except Exception:
+            await _close_client_safely(temporal_client, "Temporal client")
+            await _close_client_safely(slack_client, "Slack client")
+    except BaseException:
         # If initialization failed, still attempt cleanup
-        if temporal_client is not None:
-            try:
-                await temporal_client.close()
-            except Exception:
-                logfire.exception("Error closing Temporal client during error handling")
-
-        if slack_client is not None:
-            try:
-                await slack_client.close()
-            except Exception:
-                logfire.exception("Error closing Slack client during error handling")
+        await _close_client_safely(temporal_client, "Temporal client")
+        await _close_client_safely(slack_client, "Slack client")
         raise
 
 

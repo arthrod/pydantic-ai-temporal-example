@@ -30,11 +30,13 @@ class GitHubResponse(BaseModel):
 
 
 # Define tool functions first (before agent creation)
-async def view_repo_files(ctx: RunContext[GitHubDependencies], repo_name: str, path: str) -> str:
+async def view_repo_files(_ctx: RunContext[GitHubDependencies], repo_name: str, path: str) -> str:
     """View files in the repository at the specified path.
 
     Args:
-        ctx: Runtime context with dependencies
+        _ctx: Runtime context with dependencies (unused)
+        repo_name: Repository name (without organization)
+        path: Path within the repository
 
     Returns:
         Formatted string listing the files and directories
@@ -48,11 +50,13 @@ async def view_repo_files(ctx: RunContext[GitHubDependencies], repo_name: str, p
     return "\n".join(result)
 
 
-async def view_pull_request(ctx: RunContext[GitHubDependencies], repo_name: str, pr_number: int) -> str:
+async def view_pull_request(_ctx: RunContext[GitHubDependencies], repo_name: str, pr_number: int) -> str:
     """View details of a specific pull request.
 
     Args:
-        ctx: Runtime context with dependencies
+        _ctx: Runtime context with dependencies (unused)
+        repo_name: Repository name (without organization)
+        pr_number: Pull request number
 
     Returns:
         Formatted string with PR details
@@ -70,11 +74,13 @@ async def view_pull_request(ctx: RunContext[GitHubDependencies], repo_name: str,
     )
 
 
-async def view_pr_comments(ctx: RunContext[GitHubDependencies], repo_name: str, pr_number: int) -> str:
+async def view_pr_comments(_ctx: RunContext[GitHubDependencies], repo_name: str, pr_number: int) -> str:
     """View all comments on a pull request.
 
     Args:
-        ctx: Runtime context with dependencies
+        _ctx: Runtime context with dependencies (unused)
+        repo_name: Repository name (without organization)
+        pr_number: Pull request number
 
     Returns:
         Formatted string with all comments
@@ -94,11 +100,12 @@ async def view_pr_comments(ctx: RunContext[GitHubDependencies], repo_name: str, 
     return "\n".join(result)
 
 
-async def view_branches(ctx: RunContext[GitHubDependencies], repo_name: str) -> str:
+async def view_branches(_ctx: RunContext[GitHubDependencies], repo_name: str) -> str:
     """View all branches in the repository.
 
     Args:
-        ctx: Runtime context with dependencies
+        _ctx: Runtime context with dependencies (unused)
+        repo_name: Repository name (without organization)
 
     Returns:
         Formatted string listing all branches
@@ -114,11 +121,12 @@ async def view_branches(ctx: RunContext[GitHubDependencies], repo_name: str) -> 
     return "\n".join(result)
 
 
-async def list_all_pull_requests(ctx: RunContext[GitHubDependencies], repo_name: str, state: str = "all") -> str:
+async def list_all_pull_requests(_ctx: RunContext[GitHubDependencies], repo_name: str, state: str = "all") -> str:
     """List all pull requests in the repository.
 
     Args:
-        ctx: Runtime context with dependencies
+        _ctx: Runtime context with dependencies (unused)
+        repo_name: Repository name (without organization)
         state: PR state filter ('open', 'closed', or 'all')
 
     Returns:

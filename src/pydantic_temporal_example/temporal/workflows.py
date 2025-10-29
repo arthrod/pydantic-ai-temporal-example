@@ -5,12 +5,11 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import timedelta
-from typing import Any, assert_never
+from typing import TYPE_CHECKING, Any, assert_never
 
 from pydantic_ai.durable_exec.temporal import TemporalAgent
 from temporalio import workflow
 from temporalio.common import RetryPolicy
-from temporalio.workflow import ActivityConfig
 
 from pydantic_temporal_example.agents.dispatch_agent import (
     GitHubRequest,
@@ -39,11 +38,16 @@ from pydantic_temporal_example.temporal.slack_activities import (
     slack_reactions_remove,
 )
 
+if TYPE_CHECKING:
+    from temporalio.workflow import ActivityConfig
+
 # Activity config with 5-minute timeout for agent operations
 _agent_activity_config: ActivityConfig = {"start_to_close_timeout": timedelta(minutes=5)}
 
 temporal_dispatch_agent = TemporalAgent(
-    dispatch_agent, name="dispatch_agent", activity_config=_agent_activity_config
+    dispatch_agent,
+    name="dispatch_agent",
+    activity_config=_agent_activity_config,
 )
 temporal_github_agent = TemporalAgent(github_agent, name="github_agent", activity_config=_agent_activity_config)
 
@@ -51,7 +55,9 @@ temporal_github_agent = TemporalAgent(github_agent, name="github_agent", activit
 _web_research_agent = build_web_research_agent()
 if _web_research_agent is not None:
     temporal_web_research_agent = TemporalAgent(
-        _web_research_agent, name="web_research_agent", activity_config=_agent_activity_config
+        _web_research_agent,
+        name="web_research_agent",
+        activity_config=_agent_activity_config,
     )
 else:
     temporal_web_research_agent = None
@@ -120,7 +126,7 @@ class SlackThreadWorkflow:
         # Get directive from the dispatch agent
         # Pass thread messages as JSON string to dispatch agent
         stringified_thread = json.dumps(self._thread_messages, indent=2)
-        dispatcher_result = await temporal_dispatch_agent.run(stringified_thread)
+        dispatcher_result = await temporal_dispatch_agent.run(stringified_thread)  # pyright: ignore[reportUnknownVariableType]
 
         if isinstance(dispatcher_result.output, NoResponse):
             return
@@ -140,7 +146,7 @@ class SlackThreadWorkflow:
             request = dispatcher_result.output
             # Default repo used when not specified in thread context
             deps = GitHubDependencies(repo_name="default-repo")
-            result = await temporal_github_agent.run(request.query, deps=deps)
+            result = await temporal_github_agent.run(request.query, deps=deps)  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
             response = result.output.response
         elif isinstance(dispatcher_result.output, WebResearchRequest):
             # Populate thread context and pass structured request
@@ -149,15 +155,15 @@ class SlackThreadWorkflow:
             else:
                 request = dispatcher_result.output
                 # Pass the query string to the agent
-                result = await temporal_web_research_agent.run(request.query)
+                result = await temporal_web_research_agent.run(request.query)  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
                 response = result.output.response
         else:
-            assert_never(dispatcher_result.output)
+            assert_never(dispatcher_result.output)  # pyright: ignore[reportArgumentType, reportUnknownArgumentType]
 
         # Post response
         await workflow.execute_activity(  # pyright: ignore[reportUnknownMemberType]
             slack_chat_post_message,
-            SlackReply(thread=event_message, content=response),
+            SlackReply(thread=event_message, content=response),  # pyright: ignore[reportUnknownArgumentType]
             start_to_close_timeout=timedelta(seconds=10),
         )
 
@@ -192,24 +198,22 @@ class PeriodicGitHubPRCheckWorkflow:
 
         while self._should_continue:
             self._check_count += 1
-            workflow.logger.info(f"Check #{self._check_count} - Fetching PRs from {repo_name}")
+            check_num = self._check_count
+            workflow.logger.info(f"Check #{check_num} - Starting PR fetch from {repo_name}")
 
-            try:
-                # Fetch PRs using the GitHub activity
-                result = await workflow.execute_activity(  # pyright: ignore[reportUnknownMemberType]
-                    fetch_github_prs,
-                    args=[repo_name, query],
-                    start_to_close_timeout=timedelta(minutes=5),
-                    retry_policy=workflow.RetryPolicy(maximum_attempts=3),
-                )
+            # Start the activity without awaiting (fire and forget)
+            # This allows the next check to start at the scheduled interval
+            workflow.start_activity(  # pyright: ignore[reportUnknownMemberType]
+                fetch_github_prs,
+                args=[repo_name, query],
+                start_to_close_timeout=timedelta(minutes=5),
+                retry_policy=RetryPolicy(maximum_attempts=3),
+            )
 
-                workflow.logger.info(f"Check #{self._check_count} completed")
-                workflow.logger.info(f"Response: {result.response}")
+            # Log when activity is started (not completed)
+            workflow.logger.info(f"Check #{check_num} - Activity started, will run concurrently")
 
-            except RuntimeError as e:
-                workflow.logger.error(f"Error during check #{self._check_count}: {e}")
-
-            # Wait before the next check
+            # Wait before the next check (this allows concurrent execution)
             workflow.logger.info(f"Waiting {check_interval_seconds}s before next check...")
             await workflow.sleep(check_interval_seconds)
 
@@ -274,7 +278,7 @@ class CLIConversationWorkflow:
         # Get directive from the dispatch agent
         # Pass conversation messages as JSON string to dispatch agent
         stringified_conversation = json.dumps(self._conversation_messages, indent=2)
-        dispatcher_result = await temporal_dispatch_agent.run(stringified_conversation)
+        dispatcher_result = await temporal_dispatch_agent.run(stringified_conversation)  # pyright: ignore[reportUnknownVariableType]
 
         if isinstance(dispatcher_result.output, NoResponse):
             # Store empty response
@@ -289,7 +293,7 @@ class CLIConversationWorkflow:
             request = dispatcher_result.output
             # Use configured repo name from workflow instance
             deps = GitHubDependencies(repo_name=self._repo_name)
-            result = await temporal_github_agent.run(request.query, deps=deps)
+            result = await temporal_github_agent.run(request.query, deps=deps)  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
             response = result.output.response
         elif isinstance(dispatcher_result.output, WebResearchRequest):
             # Delegate to web research agent
@@ -297,10 +301,10 @@ class CLIConversationWorkflow:
                 response = "Web research is not available. Please configure JINA_API_KEY."
             else:
                 request = dispatcher_result.output
-                result = await temporal_web_research_agent.run(request.query)
+                result = await temporal_web_research_agent.run(request.query)  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
                 response = result.output.response
         else:
-            assert_never(dispatcher_result.output)
+            assert_never(dispatcher_result.output)  # pyright: ignore[reportArgumentType, reportUnknownArgumentType]
 
         # Store response in conversation history
         assistant_message = {
@@ -312,7 +316,7 @@ class CLIConversationWorkflow:
 
         # Set latest response for query
         self._latest_response = CLIResponse(
-            content=response,
+            content=response,  # pyright: ignore[reportUnknownArgumentType]
             metadata={
                 "timestamp": assistant_message["timestamp"],
                 "message_count": len(self._conversation_messages),

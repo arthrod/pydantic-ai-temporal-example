@@ -9,9 +9,13 @@ from pydantic_temporal_example.api import router
 from pydantic_temporal_example.dependencies import lifespan
 from pydantic_temporal_example.temporal.worker import temporal_worker
 
+# Configure logfire once at module level (before app creation)
+logfire.configure(console=None)
+logfire.instrument_pydantic_ai()
+logfire.instrument_httpx(capture_all=True)
+
 app = FastAPI(lifespan=lifespan)
 app.include_router(router)
-
 
 logfire.instrument_fastapi(app)
 
