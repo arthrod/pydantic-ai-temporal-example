@@ -22,16 +22,11 @@ async def fetch_github_prs(repo_name: str, query: str = "List all pull requests 
     logfire.info(f"Fetching PRs from repository: {repo_name}")
     logfire.info(f"Query: {query}")
 
-    try:
-        deps = GitHubDependencies(repo_name=repo_name)
-        result = await github_agent.run(query, deps=deps)
+    deps = GitHubDependencies(repo_name=repo_name)
+    result = await github_agent.run(query, deps=deps)
 
-        logfire.info(f"Successfully fetched PRs from {repo_name}")
-        return result.output
-
-    except Exception as e:
-        logfire.error(f"Error fetching PRs from {repo_name}: {e}")
-        raise
+    logfire.info(f"Successfully fetched PRs from {repo_name}")
+    return result.output
 
 
 # All GitHub activities

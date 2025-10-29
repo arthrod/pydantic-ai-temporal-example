@@ -34,8 +34,8 @@ async def get_verified_slack_events_body(
     now = int(time.time())
     try:
         ts = int(timestamp_header)
-    except ValueError:
-        raise HTTPException(status_code=401, detail="Invalid x-slack-request-timestamp header")
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail="Invalid x-slack-request-timestamp header") from e
     if ts < (now - 300) or ts > (now + 300):
         raise HTTPException(status_code=401, detail="Request timestamp too old or too far in the future")
 

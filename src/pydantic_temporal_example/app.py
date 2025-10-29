@@ -21,7 +21,7 @@ async def main() -> None:
     # Optional: install uvloop (no-op on Windows)
 
     async with temporal_worker():
-        host = "0.0.0.0"  # Expose to all interfaces for container access
+        host = "127.0.0.1"  # Use localhost instead of binding to all interfaces
         port = 4000
         config = uvicorn.Config("pydantic_temporal_example.app:app", host=host, port=port)
         server = uvicorn.Server(config)

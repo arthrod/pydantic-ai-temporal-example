@@ -13,9 +13,8 @@ from pydantic import TypeAdapter
 from pydantic_ai.tools import Tool
 from typing_extensions import TypedDict
 
-from pydantic_temporal_example import setup_logfire
+from pydantic_temporal_example.config import get_jina_api_key
 
-logfire = setup_logfire()
 
 class JinaSearchResult(TypedDict):
     """A Jina search result.
@@ -87,6 +86,116 @@ class JinaSearchTool:
             return f"{query} (Focus on information {time_desc})"
         return query
 
+    async def _advanced_search(
+        self,
+        query: str,
+        time_range: str | None,
+        client: httpx.AsyncClient,
+        headers: dict[str, str],
+    ) -> list[JinaSearchResult]:
+        """Execute advanced search using DeepSearch API."""
+        enhanced_query = self._append_time_range_to_prompt(query, time_range)
+        headers["Content-Type"] = "application/json"
+
+        async with client.stream(
+            "POST",
+            "https://deepsearch.jina.ai/v1/chat/completions",
+            headers=headers,
+            json={
+                "model": "jina-deepsearch-v1",
+                "messages": [{"role": "user", "content": enhanced_query}],
+                "stream": True,
+            },
+        ) as response:
+            response.raise_for_status()
+
+            full_content = ""
+            async for line in response.aiter_lines():
+                if not line or not line.startswith("data:"):
+                    continue
+                try:
+                    chunk_str = line[len("data: ") :]
+                    if chunk_str.strip() == "[DONE]":
+                        break
+                    chunk = json.loads(chunk_str)
+                    choices = chunk.get("choices", [])
+                    if choices:
+                        delta = choices[0].get("delta", {})
+                        if "content" in delta:
+                            full_content += delta["content"]
+                        # DeepSearch may stream reasoning content separately
+                        if "reasoning_content" in delta:
+                            full_content += delta["reasoning_content"]
+                except (json.JSONDecodeError, IndexError, KeyError):
+                    continue  # Ignore invalid JSON lines
+
+        return [
+            {
+                "title": f"DeepSearch Result for: {query}",
+                "url": "",
+                "content": full_content,
+                "score": 0.0,
+            },
+        ]
+
+    async def _basic_search(
+        self,
+        query: str,
+        time_range: str | None,
+        client: httpx.AsyncClient,
+        headers: dict[str, str],
+    ) -> list[JinaSearchResult]:
+        """Execute basic search using standard Search API."""
+        enhanced_query = query + self._build_time_range_filter(time_range)
+
+        # Prefer JSON; fall back to text/markdown
+        backoff = 1.0
+        results: list[JinaSearchResult] = []
+        max_retries = 2
+        http_too_many_requests = 429
+
+        for attempt in range(3):
+            try:
+                response = await client.get(
+                    "https://s.jina.ai/",
+                    headers=headers,  # Accept: application/json already set
+                    params={"q": enhanced_query},
+                )
+                response.raise_for_status()
+                try:
+                    data = response.json()
+                    raw_results = data.get("data", [])
+                    results = [
+                        {
+                            "title": item.get("title", ""),
+                            "url": item.get("url", ""),
+                            "content": item.get("content", ""),
+                            "score": float(item.get("score", 0.0)),
+                        }
+                        for item in raw_results
+                    ]
+                    break
+                except (json.JSONDecodeError, ValueError, KeyError):
+                    # Treat full body as a single markdown result
+                    results = [
+                        {
+                            "title": f"Search Result for: {query}",
+                            "url": "",
+                            "content": response.text,
+                            "score": 0.0,
+                        },
+                    ]
+                    break
+            except httpx.HTTPStatusError as e:
+                # HTTP 429: Too Many Requests - retry with backoff
+                if e.response.status_code == http_too_many_requests and attempt < max_retries:
+                    await asyncio.sleep(backoff)
+                    backoff *= 2
+                    continue
+                raise
+
+        return results
+
     async def __call__(
         self,
         query: str,
@@ -110,95 +219,9 @@ class JinaSearchTool:
 
         async with httpx.AsyncClient(timeout=120.0) as client:
             if search_deep == "advanced":
-                # Use the DeepSearch API with time range appended to prompt
-                enhanced_query = self._append_time_range_to_prompt(query, time_range)
-                headers["Content-Type"] = "application/json"
-
-                async with client.stream(
-                    "POST",
-                    "https://deepsearch.jina.ai/v1/chat/completions",
-                    headers=headers,
-                    json={
-                        "model": "jina-deepsearch-v1",
-                        "messages": [{"role": "user", "content": enhanced_query}],
-                        "stream": True,
-                    },
-                ) as response:
-                    response.raise_for_status()
-
-                    full_content = ""
-                    async for line in response.aiter_lines():
-                        if not line or not line.startswith("data:"):
-                            continue
-                        try:
-                            chunk_str = line[len("data: ") :]
-                            if chunk_str.strip() == "[DONE]":
-                                break
-                            chunk = json.loads(chunk_str)
-                            choices = chunk.get("choices", [])
-                            if choices:
-                                delta = choices[0].get("delta", {})
-                                if "content" in delta:
-                                    full_content += delta["content"]
-                                # DeepSearch may stream reasoning content separately
-                                if "reasoning_content" in delta:
-                                    full_content += delta["reasoning_content"]
-                        except (json.JSONDecodeError, IndexError, KeyError):
-                            continue  # Ignore invalid JSON lines
-
-                results = [
-                    {
-                        "title": f"DeepSearch Result for: {query}",
-                        "url": "",
-                        "content": full_content,
-                        "score": 0.0,
-                    },
-                ]
+                results = await self._advanced_search(query, time_range, client, headers)
             else:
-                # Use the standard Search API with GET request and SERP-style time filtering
-                enhanced_query = query + self._build_time_range_filter(time_range)
-
-                # Prefer JSON; fall back to text/markdown
-                backoff = 1.0
-                results = []
-                for attempt in range(3):
-                    try:
-                        response = await client.get(
-                            "https://s.jina.ai/",
-                            headers=headers,  # Accept: application/json already set
-                            params={"q": enhanced_query},
-                        )
-                        response.raise_for_status()
-                        try:
-                            data = response.json()
-                            raw_results = data.get("data", [])
-                            results = [
-                                {
-                                    "title": item.get("title", ""),
-                                    "url": item.get("url", ""),
-                                    "content": item.get("content", ""),
-                                    "score": float(item.get("score", 0.0)),
-                                }
-                                for item in raw_results
-                            ]
-                            break
-                        except Exception:
-                            # Treat full body as a single markdown result
-                            results = [
-                                {
-                                    "title": f"Search Result for: {query}",
-                                    "url": "",
-                                    "content": response.text,
-                                    "score": 0.0,
-                                },
-                            ]
-                            break
-                    except httpx.HTTPStatusError as e:
-                        if e.response.status_code == 429 and attempt < 2:
-                            await asyncio.sleep(backoff)
-                            backoff *= 2
-                            continue
-                        raise
+                results = await self._basic_search(query, time_range, client, headers)
 
         return jina_search_ta.validate_python(results)
 
@@ -238,8 +261,6 @@ async def jina_search(
     Returns:
         The search results, limited to max_results.
     """
-    from pydantic_temporal_example.config import JINA_API_KEY
-
-    tool = JinaSearchTool(api_key=JINA_API_KEY)
+    tool = JinaSearchTool(api_key=get_jina_api_key())
     results = await tool(query=query, search_deep=search_deep, time_range=time_range)
     return results[:max_results]

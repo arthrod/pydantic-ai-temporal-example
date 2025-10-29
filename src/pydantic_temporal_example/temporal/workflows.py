@@ -129,7 +129,8 @@ class SlackThreadWorkflow:
         elif isinstance(dispatcher_result.output, GitHubRequest):
             # Extract query and create dependencies
             request = dispatcher_result.output
-            deps = GitHubDependencies(repo_name="default-repo")  # TODO: Extract repo from thread context
+            # Default repo used when not specified in thread context
+            deps = GitHubDependencies(repo_name="default-repo")
             result = await temporal_github_agent.run(request.query, deps=deps)
             response = result.output.response
         elif isinstance(dispatcher_result.output, WebResearchRequest):
@@ -163,7 +164,10 @@ class PeriodicGitHubPRCheckWorkflow:
 
     @workflow.run
     async def periodic_run(
-        self, repo_name: str, check_interval_seconds: int = 30, query: str = "List all pull requests in the repository",
+        self,
+        repo_name: str,
+        check_interval_seconds: int = 30,
+        query: str = "List all pull requests in the repository",
     ) -> None:
         """Main workflow loop: periodically fetches PRs from GitHub.
 
@@ -184,13 +188,15 @@ class PeriodicGitHubPRCheckWorkflow:
             try:
                 # Fetch PRs using the GitHub activity
                 result = await workflow.execute_activity(  # pyright: ignore[reportUnknownMemberType]
-                    fetch_github_prs, args=[repo_name, query], start_to_close_timeout=timedelta(seconds=30),
+                    fetch_github_prs,
+                    args=[repo_name, query],
+                    start_to_close_timeout=timedelta(seconds=30),
                 )
 
                 workflow.logger.info(f"Check #{self._check_count} completed")
                 workflow.logger.info(f"Response: {result.response}")
 
-            except Exception as e:
+            except RuntimeError as e:
                 workflow.logger.error(f"Error during check #{self._check_count}: {e}")
 
             # Wait before the next check
@@ -207,3 +213,99 @@ class PeriodicGitHubPRCheckWorkflow:
     def get_check_count(self) -> int:
         """Query to get the current check count."""
         return self._check_count
+
+
+@workflow.defn
+class CLIConversationWorkflow:
+    """Orchestrates a CLI conversation: collects prompts, dispatches, and runs agents."""
+
+    def __init__(self) -> None:
+        """Initialize pending event queue and conversation message store."""
+        self._pending_events: asyncio.Queue[CLIPromptEvent] = asyncio.Queue()
+        self._conversation_messages: list[dict[str, Any]] = []
+        self._response_ready: asyncio.Event = asyncio.Event()
+        self._latest_response: CLIResponse | None = None
+        self._repo_name: str = "default-repo"
+
+    @workflow.run
+    async def run(self) -> None:
+        """Main workflow loop: waits for queued prompts and handles each one."""
+        while True:
+            await workflow.wait_condition(lambda: not self._pending_events.empty())
+            while not self._pending_events.empty():
+                event = self._pending_events.get_nowait()
+                await self.handle_prompt(event)
+
+    @workflow.signal
+    async def submit_prompt(self, event: CLIPromptEvent) -> None:
+        """Signal to enqueue a CLI prompt for processing."""
+        await self._pending_events.put(event)
+
+    @workflow.query
+    def get_latest_response(self) -> CLIResponse | None:
+        """Query to retrieve the most recent response."""
+        return self._latest_response
+
+    @workflow.query
+    def get_conversation_history(self) -> list[dict[str, Any]]:
+        """Query to retrieve the full conversation history."""
+        return self._conversation_messages
+
+    async def handle_prompt(self, event: CLIPromptEvent) -> None:
+        """Process a CLI prompt: dispatch to agents and prepare response."""
+        # Add user message to conversation history
+        user_message = {
+            "role": "user",
+            "content": event.prompt,
+            "timestamp": event.timestamp,
+        }
+        self._conversation_messages.append(user_message)
+
+        # Get directive from the dispatch agent
+        # Pass conversation messages as JSON string to dispatch agent
+        stringified_conversation = json.dumps(self._conversation_messages, indent=2)
+        dispatcher_result = await temporal_dispatch_agent.run(stringified_conversation)
+
+        if isinstance(dispatcher_result.output, NoResponse):
+            # Store empty response
+            self._latest_response = CLIResponse(content="(No response needed)")
+            return
+
+        response: str | list[dict[str, Any]]
+        if isinstance(dispatcher_result.output, SlackResponse):
+            response = dispatcher_result.output.response
+        elif isinstance(dispatcher_result.output, GitHubRequest):
+            # Extract query and create dependencies
+            request = dispatcher_result.output
+            # Use configured repo name from workflow instance
+            deps = GitHubDependencies(repo_name=self._repo_name)
+            result = await temporal_github_agent.run(request.query, deps=deps)
+            response = result.output.response
+        elif isinstance(dispatcher_result.output, WebResearchRequest):
+            # Delegate to web research agent
+            if temporal_web_research_agent is None:
+                response = "Web research is not available. Please configure JINA_API_KEY."
+            else:
+                request = dispatcher_result.output
+                result = await temporal_web_research_agent.run(request.query)
+                response = result.output.response
+        else:
+            assert_never(dispatcher_result.output)
+
+        # Store response in conversation history
+        assistant_message = {
+            "role": "assistant",
+            "content": response,
+            "timestamp": workflow.now().isoformat(),
+        }
+        self._conversation_messages.append(assistant_message)
+
+        # Set latest response for query
+        self._latest_response = CLIResponse(
+            content=response,
+            metadata={
+                "timestamp": assistant_message["timestamp"],
+                "message_count": len(self._conversation_messages),
+            },
+        )
+        self._response_ready.set()

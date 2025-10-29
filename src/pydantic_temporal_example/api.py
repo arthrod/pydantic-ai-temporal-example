@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Annotated, Any, assert_never
 
+import logfire
 from fastapi import APIRouter, Depends
 from starlette.responses import JSONResponse, Response
 from temporalio.exceptions import TemporalError
 
-from pydantic_temporal_example import setup_logfire
 from pydantic_temporal_example.config import get_settings
 from pydantic_temporal_example.dependencies import TemporalClient, get_slack_bot_user_id, get_temporal_client
 from pydantic_temporal_example.models import (
@@ -17,10 +17,10 @@ from pydantic_temporal_example.models import (
     SlackEventsAPIBody,
     URLVerificationEvent,
 )
-from pydantic_temporal_example.slack import get_verified_slack_events_body
-from pydantic_temporal_example.temporal.workflows import SlackThreadWorkflow
-
-logfire = setup_logfire()
+from pydantic_temporal_example.temporal.workflows import (
+    SlackThreadWorkflow,
+)
+from pydantic_temporal_example.tools.slack import get_verified_slack_events_body
 
 router = APIRouter()
 

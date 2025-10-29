@@ -7,13 +7,10 @@ from typing import Any
 
 from pydantic import with_config
 from pydantic_ai import Agent
+from pydantic_ai_claude_code import ClaudeCodeModel, ClaudeCodeProvider
 
-from pydantic_temporal_example import setup_logfire
 from pydantic_temporal_example.config import get_settings
 from pydantic_temporal_example.tools import jina_search_tool
-
-logfire = setup_logfire()
-from pydantic_ai_claude_code import ClaudeCodeModel, ClaudeCodeProvider
 
 provider = ClaudeCodeProvider({"use_sandbox_runtime": False})
 instance_model = ClaudeCodeModel("opus", provider=provider)

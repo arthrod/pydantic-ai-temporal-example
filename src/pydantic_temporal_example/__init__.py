@@ -5,7 +5,12 @@ This package contains the FastAPI app, agents, models, and Temporal orchestratio
 
 import logfire
 
-from .config import GITHUB_AGENT_MODEL, GITHUB_ORG, GITHUB_PAT, JINA_API_KEY
+from .config import (
+    get_github_agent_model,
+    get_github_org,
+    get_github_pat,
+    get_jina_api_key,
+)
 
 
 def setup_logfire() -> logfire.Logfire:
@@ -17,4 +22,10 @@ def setup_logfire() -> logfire.Logfire:
 
 instance_logfire = setup_logfire()
 
-__all__ = ["GITHUB_AGENT_MODEL", "GITHUB_ORG", "GITHUB_PAT", "JINA_API_KEY", "instance_logfire"]
+__all__ = [
+    "get_github_agent_model",
+    "get_github_org",
+    "get_github_pat",
+    "get_jina_api_key",
+    "instance_logfire",
+]

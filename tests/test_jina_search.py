@@ -25,8 +25,8 @@ async def test_basic_json_response(monkeypatch):
         def __init__(self, *a, **kw): ...
         async def __aenter__(self): return self
         async def __aexit__(self, exc_type, exc, tb): return False
-        async def get(self, _url, _headers=None, _params=None):
-            assert "s.jina.ai" in _url
+        async def get(self, url, headers=None, params=None):
+            assert "s.jina.ai" in url
             return FakeResponse({"data": [{"title": "t", "url": "u", "content": "c", "score": 0.9}]})
     monkeypatch.setattr(httpx, "AsyncClient", FakeAsyncClient, raising=True)
 
@@ -53,7 +53,7 @@ async def test_basic_text_fallback(monkeypatch):
         def __init__(self, *a, **kw): ...
         async def __aenter__(self): return self
         async def __aexit__(self, exc_type, exc, tb): return False
-        async def get(self, _url, _headers=None, _params=None):
+        async def get(self, url, headers=None, params=None):
             return FakeResponse("plain text body")
     monkeypatch.setattr(httpx, "AsyncClient", FakeAsyncClient, raising=True)
 

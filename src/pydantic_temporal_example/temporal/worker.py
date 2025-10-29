@@ -6,12 +6,14 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from pydantic_ai.durable_exec.temporal import AgentPlugin
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
+from temporalio.worker.workflow_sandbox import SandboxedWorkflowRunner, SandboxRestrictions
 
 from pydantic_temporal_example.config import get_settings
 from pydantic_temporal_example.temporal.client import build_temporal_client
 from pydantic_temporal_example.temporal.github_activities import ALL_GITHUB_ACTIVITIES
 from pydantic_temporal_example.temporal.slack_activities import ALL_SLACK_ACTIVITIES
 from pydantic_temporal_example.temporal.workflows import (
+    CLIConversationWorkflow,
     PeriodicGitHubPRCheckWorkflow,
     SlackThreadWorkflow,
     temporal_dispatch_agent,
@@ -58,17 +60,33 @@ async def temporal_worker(
             await stack.enter_async_context(workflow_env)
 
         client = await build_temporal_client(host=host, port=resolved_port)
+
+        # Build plugins list, only including web research agent if configured
+        plugins = [
+            AgentPlugin(temporal_dispatch_agent),
+            AgentPlugin(temporal_github_agent),
+        ]
+        if temporal_web_research_agent is not None:
+            plugins.append(AgentPlugin(temporal_web_research_agent))
+
+        # Configure sandbox to allow config and agent modules as passthrough
+        # This prevents .env file reading restrictions during workflow validation
+        restrictions = SandboxRestrictions.default.with_passthrough_modules(
+            "pydantic_temporal_example.config",
+            "pydantic_temporal_example.agents",
+            "pydantic_temporal_example.tools",
+            "pydantic_settings",
+            "pathlib",
+        )
+
         worker = await stack.enter_async_context(
             Worker(
                 client,
                 task_queue=task_queue,
-                workflows=[SlackThreadWorkflow, PeriodicGitHubPRCheckWorkflow],
+                workflows=[SlackThreadWorkflow, PeriodicGitHubPRCheckWorkflow, CLIConversationWorkflow],
                 activities=ALL_SLACK_ACTIVITIES + ALL_GITHUB_ACTIVITIES,
-                plugins=[
-                    AgentPlugin(temporal_dispatch_agent),
-                    AgentPlugin(temporal_github_agent),
-                    AgentPlugin(temporal_web_research_agent),
-                ],
+                plugins=plugins,
+                workflow_runner=SandboxedWorkflowRunner(restrictions=restrictions),
             ),
         )
 

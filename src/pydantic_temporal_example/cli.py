@@ -13,8 +13,13 @@ import logfire
 import typer
 import uvloop
 
+from pydantic_temporal_example.agents.github_agent import GitHubDependencies, github_agent
 from pydantic_temporal_example.config import get_settings
+from pydantic_temporal_example.temporal.client import build_temporal_client
+from pydantic_temporal_example.temporal.github_activities import fetch_github_prs
 from pydantic_temporal_example.temporal.worker import temporal_worker
+from pydantic_temporal_example.temporal.workflows import PeriodicGitHubPRCheckWorkflow
+from pydantic_temporal_example.tools.jina_search import jina_search
 
 app = typer.Typer()
 
@@ -28,7 +33,6 @@ def github_prs(
     ] = "List all pull requests in the repository",
 ) -> None:
     """Query GitHub agent for all PRs once using Temporal activity."""
-    from pydantic_temporal_example.temporal.github_activities import fetch_github_prs
 
     async def _run() -> None:
         logfire.info(f"Fetching all PRs from {repo}...")
@@ -38,7 +42,7 @@ def github_prs(
             await fetch_github_prs(repo, query)
 
             logfire.info("GitHub Agent Response:")
-        except Exception as e:
+        except RuntimeError as e:
             logfire.error(f"Error fetching PRs: {e}")
 
     asyncio.run(_run())
@@ -54,8 +58,6 @@ def github_prs_periodic(
     ] = "List all pull requests in the repository",
 ) -> None:
     """Run periodic GitHub PR checks using Temporal workflow."""
-    from pydantic_temporal_example.temporal.client import build_temporal_client
-    from pydantic_temporal_example.temporal.workflows import PeriodicGitHubPRCheckWorkflow
 
     async def _run() -> None:
         logfire.info(f"Starting periodic PR checks for {repo} every {interval}s...")
@@ -85,7 +87,7 @@ def github_prs_periodic(
                 logfire.info("Stopping workflow...")
                 await handle.signal(PeriodicGitHubPRCheckWorkflow.stop)
 
-        except Exception as e:
+        except RuntimeError as e:
             logfire.error(f"Error running periodic checks: {e}")
 
     asyncio.run(_run())
@@ -98,7 +100,6 @@ def jina_research(
     iterations: Annotated[int, typer.Option(help="Number of iterations (0 = infinite)")] = 0,
 ) -> None:
     """Run periodic Jina research on a topic."""
-    from pydantic_temporal_example.tools.jina_search import jina_search
 
     async def _run() -> None:
         count = 0
@@ -117,7 +118,7 @@ def jina_research(
                     if "description" in result:
                         result["description"][:200]
 
-            except Exception as e:
+            except RuntimeError as e:
                 logfire.error(f"Error during research: {e}")
 
             if iterations == 0 or count < iterations:
@@ -134,8 +135,6 @@ def combined_task(
     research_interval: Annotated[int, typer.Option(help="Research interval in seconds")] = 30,
 ) -> None:
     """Run both GitHub PR analysis and periodic Jina research concurrently."""
-    from pydantic_temporal_example.agents.github_agent import GitHubDependencies, github_agent
-    from pydantic_temporal_example.tools.jina_search import jina_search
 
     async def github_task() -> None:
         deps = GitHubDependencies(repo_name=repo)
@@ -158,7 +157,7 @@ def combined_task(
                 for _i, _result in enumerate(results, 1):
                     pass
 
-            except Exception as e:
+            except RuntimeError as e:
                 logfire.error(f"Jina research error: {e}")
 
             await asyncio.sleep(research_interval)
@@ -221,7 +220,7 @@ def main(
                 # Set up graceful shutdown
                 shutdown_event = asyncio.Event()
 
-                def signal_handler(sig: int, frame: object) -> None:
+                def signal_handler(_sig: int, _frame: object) -> None:
                     logfire.info("Received shutdown signal, stopping worker...")
                     shutdown_event.set()
 
@@ -230,7 +229,7 @@ def main(
 
                 await shutdown_event.wait()
                 logfire.info("Worker stopped")
-        except Exception as e:
+        except RuntimeError as e:
             logfire.exception(f"Worker failed: {e}")
             sys.exit(1)
 

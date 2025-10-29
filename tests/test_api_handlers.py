@@ -1,4 +1,3 @@
-import asyncio
 import pytest
 import pydantic_temporal_example.api as api_mod
 from pydantic_temporal_example.models import URLVerificationEvent, AppMentionEvent, MessageChannelsEvent
@@ -8,10 +7,10 @@ from starlette.responses import JSONResponse, Response
 DUMMY_TOKEN = "t"
 
 
-def test_handle_url_verification_event():
+@pytest.mark.asyncio
+async def test_handle_url_verification_event():
     evt = URLVerificationEvent(type="url_verification", token=DUMMY_TOKEN, challenge="xyz")
-    out_coro = api_mod.handle_url_verification_event(evt)
-    resp: JSONResponse = asyncio.get_event_loop().run_until_complete(out_coro)
+    resp: JSONResponse = await api_mod.handle_url_verification_event(evt)
     assert resp.body and b"xyz" in resp.body
 
 

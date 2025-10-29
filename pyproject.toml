@@ -20,6 +20,7 @@ dependencies = [
     "uvloop>=0.20",
     "pygithub>=2.8.1",
     "pydantic-ai-claude-code>=0.8.1",
+    "aiohttp>=3.13.2",
 ]
 
 [project.scripts]
@@ -31,9 +32,14 @@ dev = [
     "pip>=25.2",
 ]
 lint = ["pyright>=1.1.405", "ruff>=0.12.10"]
+test = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+]
 
 [tool.uv]
-default-groups = ["dev", "lint"]
+default-groups = ["dev", "lint", "test"]
 
 [tool.ruff]
 line-length = 120
@@ -60,6 +66,8 @@ ignore = [
     "D104", # ignore missing docstring in public package
     "D105", # ignore missing docstring in magic methods
     "D107", # ignore missing docstring in __init__ methods
+    "S104", # ignore binding to all interfaces (needed for containers)
+    "TRY300", # ignore moving return to else block (conflicts with RET505)
 ]
 
 [tool.ruff.lint.isort]

@@ -1,3 +1,5 @@
+"""Configuration management for the application using pydantic-settings."""
+
 from functools import cache
 
 from pydantic import AliasChoices, Field
@@ -42,8 +44,29 @@ def get_settings() -> Settings:
     """
     return Settings()
 
-JINA_API_KEY = get_settings().JINA_API_KEY
-GITHUB_PAT = get_settings().GITHUB_PAT
-GITHUB_ORG = get_settings().GITHUB_ORG
-GITHUB_AGENT_MODEL = get_settings().GITHUB_AGENT_MODEL
-LOGFIRE_API_KEY = get_settings().LOGFIRE_API_KEY
+
+# Helper functions to lazily access settings values
+# These avoid module-level Settings() initialization which conflicts with Temporal's workflow sandbox
+def get_jina_api_key() -> str:
+    """Get JINA_API_KEY from settings."""
+    return get_settings().JINA_API_KEY
+
+
+def get_github_pat() -> str:
+    """Get GITHUB_PAT from settings."""
+    return get_settings().GITHUB_PAT
+
+
+def get_github_org() -> str:
+    """Get GITHUB_ORG from settings."""
+    return get_settings().GITHUB_ORG
+
+
+def get_github_agent_model() -> str:
+    """Get GITHUB_AGENT_MODEL from settings."""
+    return get_settings().GITHUB_AGENT_MODEL
+
+
+def get_logfire_api_key() -> str:
+    """Get LOGFIRE_API_KEY from settings."""
+    return get_settings().LOGFIRE_API_KEY

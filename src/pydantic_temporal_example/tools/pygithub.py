@@ -1,3 +1,5 @@
+"""PyGithub wrapper for accessing GitHub repositories and pull requests."""
+
 from typing import Any
 
 import logfire
@@ -6,7 +8,7 @@ from github.ContentFile import ContentFile
 from github.PullRequest import PullRequest
 from github.Repository import Repository
 
-from pydantic_temporal_example.config import GITHUB_ORG, GITHUB_PAT
+from pydantic_temporal_example.config import get_github_org, get_github_pat
 
 
 class GitHubConn:
@@ -22,9 +24,9 @@ class GitHubConn:
         Args:
             organization: GitHub organization name (defaults to GITHUB_ORG from config)
         """
-        auth = Auth.Token(GITHUB_PAT)
+        auth = Auth.Token(get_github_pat())
         self.g = Github(auth=auth)
-        self.organization = organization or GITHUB_ORG
+        self.organization = organization or get_github_org()
 
     def get_repo(self, repo_name: str) -> Repository:
         """Get a repository by name.
@@ -48,7 +50,7 @@ class GitHubConn:
             return self.g.get_repo(full_repo_name)
         except Exception as e:
             logfire.error(f"Error accessing repository {full_repo_name}: {e!s}")
-            raise
+            raise  # Re-raise original exception
 
     def get_repo_files(self, repo_name: str, path: str = "") -> list[ContentFile]:
         """Get files from a repository at the specified path.
