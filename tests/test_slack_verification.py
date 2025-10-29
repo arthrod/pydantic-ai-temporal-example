@@ -1,9 +1,7 @@
-import asyncio
 import hmac
 import hashlib
 import json
 import time
-import types
 import pytest
 
 import pydantic_temporal_example.tools.slack as slack_mod
@@ -42,9 +40,9 @@ async def test_get_verified_slack_events_body_happy_path(monkeypatch):
     headers, raw = _signed_headers("supersecret", payload)
     req = FakeRequest(headers, raw)
 
-    result = await slack_mod.get_verified_slack_events_body(req)
-    assert result.type == "url_verification"
-    assert result.challenge == "xyz"
+    result = await slack_mod.get_verified_slack_events_body(req)  # type: ignore[arg-type]
+    assert result.type == "url_verification"  # type: ignore[union-attr]
+    assert result.challenge == "xyz"  # type: ignore[union-attr]
 
 
 @pytest.mark.asyncio
@@ -60,4 +58,4 @@ async def test_get_verified_slack_events_body_invalid_signature(monkeypatch):
         json.dumps(payload).encode(),
     )
     with pytest.raises(Exception):
-        await slack_mod.get_verified_slack_events_body(req)
+        await slack_mod.get_verified_slack_events_body(req)  # type: ignore[arg-type]

@@ -28,7 +28,7 @@ async def test_handle_app_mention_event_starts_workflow(monkeypatch):
     event = AppMentionEvent(
         type="app_mention", user="U", text="hi", ts="1.1", channel="C", event_ts="1.1", thread_ts=None
     )
-    resp: Response = await api_mod.handle_app_mention_event(event, FakeTemporalClient())
+    resp: Response = await api_mod.handle_app_mention_event(event, FakeTemporalClient())  # type: ignore[arg-type]
     assert resp.status_code == 204
     assert "id" in started["kwargs"] and "task_queue" in started["kwargs"]
 
@@ -50,5 +50,5 @@ async def test_handle_message_channels_event_when_no_workflow():
     event = MessageChannelsEvent(
         type="message", user="U", text="yo", ts="1.1", channel="C", event_ts="1.1", channel_type="channel", thread_ts=None
     )
-    resp: Response = await api_mod.handle_message_channels_event(event, FakeTemporalClient())
+    resp: Response = await api_mod.handle_message_channels_event(event, FakeTemporalClient())  # type: ignore[arg-type]
     assert resp.status_code == 204

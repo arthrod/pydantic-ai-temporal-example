@@ -195,7 +195,7 @@ if __name__ == "__main__":
             logfire.info(f"Running GitHub agent with deps: {deps_instance}")
             result = await github_agent.run(
                 "Show me the branches in this repository entitled pydantic-ai-temporal-example",
-                deps=deps_instance,
+                deps=deps_instance,  # type: ignore[arg-type]
             )
             logfire.info(f"GitHub agent result: {result.output}")
         except AgentRunError as e:

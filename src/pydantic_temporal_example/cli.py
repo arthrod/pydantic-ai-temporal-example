@@ -115,8 +115,8 @@ def jina_research(
                 logfire.info(f"Found {len(results)} results")
 
                 for _i, result in enumerate(results, 1):
-                    if "description" in result:
-                        result["description"][:200]
+                    if "content" in result:
+                        result["content"][:200]
 
             except RuntimeError as e:
                 logfire.error(f"Error during research: {e}")
@@ -142,7 +142,7 @@ def combined_task(
         logfire.info(f"Fetching all PRs from {repo}...")
         await github_agent.run(
             "List all pull requests in the repository and include their comments for each PR",
-            deps=deps,
+            deps=deps,  # type: ignore[arg-type]
         )
 
     async def jina_task() -> None:

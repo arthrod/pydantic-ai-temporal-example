@@ -136,3 +136,10 @@ node_modules/
 .DS_Store
 Thumbs.db
 .env
+.venv/
+node_modules/
+.pytest_cache/
+.ruff_cache/
+.superdesign/
+dist/
+.logfire/

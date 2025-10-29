@@ -24,7 +24,7 @@ async def fetch_github_prs(repo_name: str, query: str = "List all pull requests 
     logfire.info("Fetching PRs from repository", repo_name=repo_name, organization=org, query=query)
 
     deps = GitHubDependencies(repo_name=repo_name)
-    result = await github_agent.run(query, deps=deps)
+    result = await github_agent.run(query, deps=deps)  # type: ignore[arg-type]
 
     logfire.info("Successfully fetched PRs", repo_name=repo_name, organization=org)
     return result.output

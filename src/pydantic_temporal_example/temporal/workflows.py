@@ -12,14 +12,22 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy
 
 from pydantic_temporal_example.agents.dispatch_agent import (
+    DispatchResult,
     GitHubRequest,
     NoResponse,
     SlackResponse,
     WebResearchRequest,
     dispatch_agent,
 )
-from pydantic_temporal_example.agents.github_agent import GitHubDependencies, github_agent
-from pydantic_temporal_example.agents.web_research_agent import build_web_research_agent
+from pydantic_temporal_example.agents.github_agent import (
+    GitHubDependencies,
+    GitHubResponse,
+    github_agent,
+)
+from pydantic_temporal_example.agents.web_research_agent import (
+    WebResearchResponse,
+    build_web_research_agent,
+)
 from pydantic_temporal_example.models import (
     AppMentionEvent,
     CLIPromptEvent,
@@ -126,7 +134,7 @@ class SlackThreadWorkflow:
         # Get directive from the dispatch agent
         # Pass thread messages as JSON string to dispatch agent
         stringified_thread = json.dumps(self._thread_messages, indent=2)
-        dispatcher_result = await temporal_dispatch_agent.run(stringified_thread)  # pyright: ignore[reportUnknownVariableType]
+        dispatcher_result = await temporal_dispatch_agent.run(stringified_thread, output_type=DispatchResult)  # type: ignore[call-arg]  # pyright: ignore[reportUnknownVariableType]
 
         if isinstance(dispatcher_result.output, NoResponse):
             return
@@ -146,7 +154,7 @@ class SlackThreadWorkflow:
             request = dispatcher_result.output
             # Default repo used when not specified in thread context
             deps = GitHubDependencies(repo_name="default-repo")
-            result = await temporal_github_agent.run(request.query, deps=deps)  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+            result = await temporal_github_agent.run(request.query, output_type=GitHubResponse, deps=deps)  # type: ignore[call-arg, arg-type]
             response = result.output.response
         elif isinstance(dispatcher_result.output, WebResearchRequest):
             # Populate thread context and pass structured request
@@ -155,15 +163,15 @@ class SlackThreadWorkflow:
             else:
                 request = dispatcher_result.output
                 # Pass the query string to the agent
-                result = await temporal_web_research_agent.run(request.query)  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+                result = await temporal_web_research_agent.run(request.query, output_type=WebResearchResponse)
                 response = result.output.response
         else:
-            assert_never(dispatcher_result.output)  # pyright: ignore[reportArgumentType, reportUnknownArgumentType]
+            assert_never(dispatcher_result.output)  # type: ignore[arg-type]
 
         # Post response
         await workflow.execute_activity(  # pyright: ignore[reportUnknownMemberType]
             slack_chat_post_message,
-            SlackReply(thread=event_message, content=response),  # pyright: ignore[reportUnknownArgumentType]
+            SlackReply(thread=event_message, content=response),
             start_to_close_timeout=timedelta(seconds=10),
         )
 
@@ -278,7 +286,7 @@ class CLIConversationWorkflow:
         # Get directive from the dispatch agent
         # Pass conversation messages as JSON string to dispatch agent
         stringified_conversation = json.dumps(self._conversation_messages, indent=2)
-        dispatcher_result = await temporal_dispatch_agent.run(stringified_conversation)  # pyright: ignore[reportUnknownVariableType]
+        dispatcher_result = await temporal_dispatch_agent.run(stringified_conversation, output_type=DispatchResult)  # type: ignore[call-arg]
 
         if isinstance(dispatcher_result.output, NoResponse):
             # Store empty response
@@ -293,7 +301,7 @@ class CLIConversationWorkflow:
             request = dispatcher_result.output
             # Use configured repo name from workflow instance
             deps = GitHubDependencies(repo_name=self._repo_name)
-            result = await temporal_github_agent.run(request.query, deps=deps)  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+            result = await temporal_github_agent.run(request.query, output_type=GitHubResponse, deps=deps)  # type: ignore[call-arg, arg-type]
             response = result.output.response
         elif isinstance(dispatcher_result.output, WebResearchRequest):
             # Delegate to web research agent
@@ -301,10 +309,10 @@ class CLIConversationWorkflow:
                 response = "Web research is not available. Please configure JINA_API_KEY."
             else:
                 request = dispatcher_result.output
-                result = await temporal_web_research_agent.run(request.query)  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+                result = await temporal_web_research_agent.run(request.query, output_type=WebResearchResponse)
                 response = result.output.response
         else:
-            assert_never(dispatcher_result.output)  # pyright: ignore[reportArgumentType, reportUnknownArgumentType]
+            assert_never(dispatcher_result.output)  # type: ignore[arg-type]
 
         # Store response in conversation history
         assistant_message = {
@@ -316,7 +324,7 @@ class CLIConversationWorkflow:
 
         # Set latest response for query
         self._latest_response = CLIResponse(
-            content=response,  # pyright: ignore[reportUnknownArgumentType]
+            content=response,
             metadata={
                 "timestamp": assistant_message["timestamp"],
                 "message_count": len(self._conversation_messages),
