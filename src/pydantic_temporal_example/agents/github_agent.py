@@ -148,6 +148,18 @@ async def list_all_pull_requests(_ctx: RunContext[GitHubDependencies], repo_name
     return "\n".join(result)
 
 
+async def get_current_repo(ctx: RunContext[GitHubDependencies]) -> str:
+    """Get the name of the current repository being analyzed.
+
+    Args:
+        ctx: Runtime context with dependencies
+
+    Returns:
+        The repository name from the current context
+    """
+    return ctx.deps.repo_name
+
+
 # Create agent and register tools
 github_agent = Agent(
     model=model_instance,
@@ -156,12 +168,15 @@ github_agent = Agent(
     system_prompt=(
         "You are a GitHub analysis agent that helps users understand "
         "repositories, pull requests, and code structure. "
-        "Provide clear, informative responses based on the repository data."
+        "Provide clear, informative responses based on the repository data. "
+        "IMPORTANT: Always use the get_current_repo tool to retrieve the repository name "
+        "instead of guessing or using placeholders like 'current'. "
         "You should FOLLOW THE INSTRUCTIONS CAREFULLY, USE THE TOOLS AND THEN PROVIDE YOUR OUTPUT."
     ),
 )
 
 # Register all tools
+github_agent.tool(get_current_repo)
 github_agent.tool(view_repo_files)
 github_agent.tool(view_pull_request)
 github_agent.tool(view_pr_comments)

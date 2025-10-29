@@ -27,5 +27,4 @@ __all__ = [
     "get_github_org",
     "get_github_pat",
     "get_jina_api_key",
-    "instance_logfire",
 ]
