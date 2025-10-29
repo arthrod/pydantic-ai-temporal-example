@@ -29,7 +29,7 @@ router = APIRouter()
 async def handle_event(
     *,
     temporal_client: Annotated[TemporalClient, Depends(get_temporal_client)],
-    slack_bot_user_id: Annotated[str, Depends(get_slack_bot_user_id)],
+    slack_bot_user_id: Annotated[str | None, Depends(get_slack_bot_user_id)],
     body: Annotated[
         SlackEventsAPIBody | URLVerificationEvent | dict[str, Any],
         Depends(get_verified_slack_events_body),
@@ -44,7 +44,7 @@ async def handle_event(
         if isinstance(body.event, AppMentionEvent):
             return await handle_app_mention_event(body.event, temporal_client)
         if isinstance(body.event, MessageChannelsEvent):
-            if body.event.user == slack_bot_user_id:
+            if slack_bot_user_id and body.event.user == slack_bot_user_id:
                 logfire.info("Ignoring event for message created by this bot")
             else:
                 return await handle_message_channels_event(body.event, temporal_client)

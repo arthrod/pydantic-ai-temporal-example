@@ -20,16 +20,21 @@ async def lifespan(_server: FastAPI) -> AsyncIterator[dict[str, Any]]:
     settings = get_settings()
     slack_client: SlackClient | None = None
     temporal_client: TemporalClient | None = None
+    slack_bot_user_id: str | None = None
 
     try:
-        # Initialize Slack client
-        slack_client = SlackClient(token=settings.slack_bot_token.get_secret_value(), timeout=60)
+        # Initialize Slack client (optional)
+        if settings.slack_bot_token:
+            slack_client = SlackClient(token=settings.slack_bot_token, timeout=60)
 
-        try:
-            slack_bot_user_id: str = cast("str", (await slack_client.auth_test())["user_id"])  # pyright: ignore[reportUnknownMemberType]
-        except Exception:
-            logfire.exception("Failed to authenticate Slack client")
-            raise
+            try:
+                slack_bot_user_id = cast("str", (await slack_client.auth_test())["user_id"])  # pyright: ignore[reportUnknownMemberType]
+                logfire.info("Slack client initialized successfully")
+            except Exception:
+                logfire.exception("Failed to authenticate Slack client")
+                raise
+        else:
+            logfire.info("Slack token not provided, Slack integration disabled")
 
         # Initialize Temporal client
         try:
@@ -76,6 +81,6 @@ async def get_temporal_client(request: Request) -> TemporalClient:
     return request.state.temporal_client
 
 
-async def get_slack_bot_user_id(request: Request) -> str:
+async def get_slack_bot_user_id(request: Request) -> str | None:
     """Return the Slack bot user id injected in request state by the lifespan handler."""
     return request.state.slack_bot_user_id

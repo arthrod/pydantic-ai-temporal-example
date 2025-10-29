@@ -6,6 +6,7 @@ import logfire
 import uvloop
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.exceptions import AgentRunError, ApprovalRequired, CallDeferred, ModelRetry, UserError
 from pydantic_ai_claude_code import ClaudeCodeModel, ClaudeCodeProvider
 
 from pydantic_temporal_example.tools import GitHubConn
@@ -174,8 +175,16 @@ if __name__ == "__main__":
                 deps=deps_instance,
             )
             logfire.info(f"GitHub agent result: {result.output}")
-        except RuntimeError as e:
-            logfire.error(f"Error running GitHub agent: {e!s}")
+        except AgentRunError as e:
+            logfire.error(f"Agent run failed: {type(e).__name__} - {e!s}", exc_info=True)
+        except UserError as e:
+            logfire.warning(f"User error in GitHub agent: {e!s}", exc_info=True)
+        except ApprovalRequired as e:
+            logfire.info(f"Approval required for GitHub agent: {e!s}", exc_info=True)
+        except CallDeferred as e:
+            logfire.info(f"Call deferred in GitHub agent: {e!s}", exc_info=True)
+        except ModelRetry as e:
+            logfire.warning(f"Model retry requested in GitHub agent: {e!s}", exc_info=True)
 
     uvloop.run(main())
     """

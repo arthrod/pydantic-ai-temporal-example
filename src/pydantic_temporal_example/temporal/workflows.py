@@ -9,6 +9,8 @@ from typing import Any, assert_never
 
 from pydantic_ai.durable_exec.temporal import TemporalAgent
 from temporalio import workflow
+from temporalio.common import RetryPolicy
+from temporalio.workflow import ActivityConfig
 
 from pydantic_temporal_example.agents.dispatch_agent import (
     GitHubRequest,
@@ -37,13 +39,20 @@ from pydantic_temporal_example.temporal.slack_activities import (
     slack_reactions_remove,
 )
 
-temporal_dispatch_agent = TemporalAgent(dispatch_agent, name="dispatch_agent")
-temporal_github_agent = TemporalAgent(github_agent, name="github_agent")
+# Activity config with 5-minute timeout for agent operations
+_agent_activity_config: ActivityConfig = {"start_to_close_timeout": timedelta(minutes=5)}
+
+temporal_dispatch_agent = TemporalAgent(
+    dispatch_agent, name="dispatch_agent", activity_config=_agent_activity_config
+)
+temporal_github_agent = TemporalAgent(github_agent, name="github_agent", activity_config=_agent_activity_config)
 
 # Build web research agent only if JINA_API_KEY is configured
 _web_research_agent = build_web_research_agent()
 if _web_research_agent is not None:
-    temporal_web_research_agent = TemporalAgent(_web_research_agent, name="web_research_agent")
+    temporal_web_research_agent = TemporalAgent(
+        _web_research_agent, name="web_research_agent", activity_config=_agent_activity_config
+    )
 else:
     temporal_web_research_agent = None
 
@@ -190,7 +199,8 @@ class PeriodicGitHubPRCheckWorkflow:
                 result = await workflow.execute_activity(  # pyright: ignore[reportUnknownMemberType]
                     fetch_github_prs,
                     args=[repo_name, query],
-                    start_to_close_timeout=timedelta(seconds=30),
+                    start_to_close_timeout=timedelta(minutes=5),
+                    retry_policy=workflow.RetryPolicy(maximum_attempts=3),
                 )
 
                 workflow.logger.info(f"Check #{self._check_count} completed")
