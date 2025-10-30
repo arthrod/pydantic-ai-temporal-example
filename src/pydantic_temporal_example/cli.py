@@ -29,6 +29,7 @@ app = typer.Typer()
 # HTTP client functions for interacting with the API
 async def send_workflow_request(
     prompt: str,
+    *,
     app_host: str = "127.0.0.1",
     app_port: int = 4000,
     repeat: bool = False,
@@ -102,6 +103,7 @@ async def send_workflow_request(
 
 async def check_workflow_response(
     workflow_id: str,
+    *,
     app_host: str = "127.0.0.1",
     app_port: int = 4000,
     use_https: bool | None = None,
