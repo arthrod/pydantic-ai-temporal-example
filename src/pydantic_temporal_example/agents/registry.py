@@ -9,7 +9,7 @@ Key Innovation: ONE agent implementation + DIFFERENT instructions = MULTIPLE spe
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic_ai import Agent
 
@@ -23,8 +23,9 @@ if TYPE_CHECKING:
 
 
 # Cache for dynamically created agents to avoid recreating them
-# Using Any for the agent type to support different output types
-_AGENT_CACHE: dict[tuple[str, str], Agent | None] = {}  # type: ignore[type-arg]
+# Using Any for the agent value type to support agents with different output types
+# (GitHubResponse, WebResearchResponse, etc.)
+_AGENT_CACHE: dict[tuple[str, str], Any] = {}
 
 
 def _create_github_agent_with_role(role: str) -> AgentType:
@@ -41,25 +42,20 @@ def _create_github_agent_with_role(role: str) -> AgentType:
     # Get role-specific instructions
     instructions = get_instructions_for_role("github", role)
 
-    # Extract tools from base github_agent using public API
-    # Access the function toolset from the agent's toolsets
-    tools_list = []
-    if hasattr(github_agent, 'toolsets') and github_agent.toolsets:
-        # Find the function toolset in the agent's toolsets
-        for toolset in github_agent.toolsets:
-            # FunctionToolset contains the individually registered tools
-            if hasattr(toolset, 'tools'):
-                tools_list = toolset.tools
-                break
+    # Extract toolsets from base github_agent using public API
+    # The toolsets parameter accepts the full toolset list from another agent
+    toolsets_list = None
+    if hasattr(github_agent, "toolsets") and github_agent.toolsets:
+        toolsets_list = github_agent.toolsets
 
     # Create new agent with same configuration but different instructions
-    # Pass the extracted tools from the base agent
+    # Pass the toolsets from the base agent via public API
     return Agent(
         model=get_github_agent_model(),
         output_type=GitHubResponse,
         deps_type=GitHubDependencies,
         instructions=instructions,
-        tools=tools_list,  # Use tools from base agent via public API
+        toolsets=toolsets_list,  # Use toolsets from base agent via public API
     )
 
 

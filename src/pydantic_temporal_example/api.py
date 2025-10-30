@@ -107,7 +107,15 @@ class CLIWorkflowAssignmentResponse(BaseModel):
     """Response model for workflow assignment confirmation."""
 
     success: bool = Field(..., description="Whether the workflow was assigned successfully")
-    workflow_id: str = Field(..., description="ID of the assigned workflow")
+    workflow_id: str = Field(
+        ...,
+        description=(
+            "ID of the assigned workflow. When repeat=True, this is a comma-separated "
+            "composite ID containing both the one-shot and periodic workflow IDs "
+            "(e.g., 'cli-workflow-xxx,periodic-cli-yyy'). Both GET and DELETE endpoints "
+            "handle composite IDs automatically."
+        ),
+    )
     message: str = Field(..., description="Human-readable message")
     is_repeating: bool = Field(False, description="Whether this is a repeating workflow")
 
@@ -180,17 +188,33 @@ async def get_cli_workflow_response(
     temporal_client: Annotated[TemporalClient, Depends(get_temporal_client)],
     workflow_id: str,
 ) -> JSONResponse:
-    """Retrieve the latest response from a CLI workflow."""
+    """Retrieve the latest response from a CLI workflow.
+
+    Handles both single workflow IDs and composite IDs (comma-separated).
+    When a composite ID is provided (e.g., "workflow1,workflow2" from repeat=True),
+    returns the response from the first workflow (the one-shot execution).
+    """
     try:
-        handle = temporal_client.get_workflow_handle_for(CLIConversationWorkflow.run, workflow_id=workflow_id)
+        # Split composite workflow IDs and get the first one (one-shot workflow)
+        # For composite IDs like "cli-workflow-xxx,periodic-cli-yyy",
+        # we want to query the first one which is the CLI conversation workflow
+        first_workflow_id = workflow_id.split(",")[0].strip()
+
+        handle = temporal_client.get_workflow_handle_for(CLIConversationWorkflow.run, workflow_id=first_workflow_id)
 
         # Query for the latest response
         response = await handle.query(CLIConversationWorkflow.get_latest_response)
 
         if response is None:
-            return JSONResponse(content={"status": "pending", "response": None})
+            return JSONResponse(content={"status": "pending", "response": None, "workflow_id": first_workflow_id})
 
-        return JSONResponse(content={"status": "completed", "response": response.model_dump()})
+        return JSONResponse(
+            content={
+                "status": "completed",
+                "response": response.model_dump(),
+                "workflow_id": first_workflow_id,
+            }
+        )
 
     except TemporalError:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -205,33 +229,67 @@ async def stop_cli_workflow(
     temporal_client: Annotated[TemporalClient, Depends(get_temporal_client)],
     workflow_id: str,
 ) -> JSONResponse:
-    """Stop a running CLI workflow."""
+    """Stop a running CLI workflow.
+
+    Handles both single workflow IDs and composite IDs (comma-separated).
+    When a composite ID is provided (e.g., "workflow1,workflow2" from repeat=True),
+    all workflows in the composite ID will be stopped.
+    """
     try:
-        # Try to stop as CLI conversation workflow first
-        try:
-            handle = temporal_client.get_workflow_handle_for(CLIConversationWorkflow.run, workflow_id=workflow_id)
-            await handle.signal("stop")
-            logfire.info("CLI workflow stopped", workflow_id=workflow_id)
-            return JSONResponse(content={"success": True, "message": "Workflow stopped successfully"})
-        except TemporalError:
-            pass
+        # Split composite workflow IDs (e.g., "workflow1,workflow2")
+        workflow_ids = [wid.strip() for wid in workflow_id.split(",")]
 
-        # Try to stop as periodic workflow
-        try:
-            from pydantic_temporal_example.temporal.workflows import PeriodicGitHubPRCheckWorkflow
+        stopped_workflows: list[str] = []
+        failed_workflows: list[str] = []
 
-            handle = temporal_client.get_workflow_handle_for(
-                PeriodicGitHubPRCheckWorkflow.periodic_run,
-                workflow_id=workflow_id,
+        for wid in workflow_ids:
+            workflow_stopped = False
+
+            # Try to stop as CLI conversation workflow first
+            try:
+                handle = temporal_client.get_workflow_handle_for(CLIConversationWorkflow.run, workflow_id=wid)
+                await handle.signal("stop")
+                logfire.info("CLI workflow stopped", workflow_id=wid)
+                stopped_workflows.append(wid)
+                workflow_stopped = True
+            except TemporalError:
+                pass
+
+            # Try to stop as periodic workflow if not already stopped
+            if not workflow_stopped:
+                try:
+                    from pydantic_temporal_example.temporal.workflows import PeriodicGitHubPRCheckWorkflow
+
+                    handle = temporal_client.get_workflow_handle(workflow_id=wid)
+                    await handle.signal(PeriodicGitHubPRCheckWorkflow.stop)
+                    logfire.info("Periodic workflow stopped", workflow_id=wid)
+                    stopped_workflows.append(wid)
+                    workflow_stopped = True
+                except TemporalError:
+                    pass
+
+            if not workflow_stopped:
+                failed_workflows.append(wid)
+
+        # Return results
+        if stopped_workflows:
+            message = f"Successfully stopped {len(stopped_workflows)} workflow(s)"
+            if failed_workflows:
+                message += f"; {len(failed_workflows)} workflow(s) not found or already stopped"
+
+            return JSONResponse(
+                content={
+                    "success": True,
+                    "message": message,
+                    "stopped_workflows": stopped_workflows,
+                    "failed_workflows": failed_workflows,
+                }
             )
-            await handle.signal(PeriodicGitHubPRCheckWorkflow.stop)
-            logfire.info("Periodic workflow stopped", workflow_id=workflow_id)
-            return JSONResponse(content={"success": True, "message": "Periodic workflow stopped successfully"})
-        except TemporalError:
-            pass
 
-        raise HTTPException(status_code=404, detail="Workflow not found or already stopped")
+        raise HTTPException(status_code=404, detail="No workflows found or all already stopped")
 
+    except HTTPException:
+        raise
     except Exception as e:
         logfire.error("Failed to stop CLI workflow", error=str(e))
         raise HTTPException(status_code=500, detail="Failed to stop workflow")

@@ -122,6 +122,11 @@ class WorkflowRequest:
     thread_messages: list[dict[str, Any]] | None = None
     """Full conversation thread context"""
 
+    def __post_init__(self) -> None:
+        """Validate that interval_seconds is set for periodic workflows."""
+        if self.workflow_type == "periodic" and self.interval_seconds is None:
+            raise ValueError("interval_seconds is required when workflow_type='periodic'")
+
 
 type DispatchResult = NoResponse | SlackResponse | WebResearchRequest | GitHubRequest | WorkflowRequest
 
