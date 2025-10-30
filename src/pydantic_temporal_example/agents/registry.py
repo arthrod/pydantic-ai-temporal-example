@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic_ai import Agent
 
-from pydantic_temporal_example.agents.github_agent import github_agent
+from pydantic_temporal_example.agents.github_agent import GitHubDependencies, GitHubResponse, github_agent
 from pydantic_temporal_example.agents.instruction_templates import get_instructions_for_role, list_available_roles
 from pydantic_temporal_example.agents.web_research_agent import build_web_research_agent
 from pydantic_temporal_example.config import get_github_agent_model
@@ -37,8 +37,6 @@ def _create_github_agent_with_role(role: str) -> AgentType:
     Returns:
         Agent configured with role-specific instructions
     """
-    from pydantic_temporal_example.agents.github_agent import GitHubDependencies, GitHubResponse
-
     # Get role-specific instructions
     instructions = get_instructions_for_role("github", role)
 

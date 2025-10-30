@@ -91,9 +91,12 @@ class WorkflowRequest:
     - How often it should repeat (if periodic)
 
     Examples:
-    - "Review PRs every hour" → agent_type="github", agent_role="reviewer", workflow_type="periodic", interval_seconds=3600
-    - "Implement auth feature" → agent_type="github", agent_role="implementer", workflow_type="oneshot"
-    - "Analyze code quality every 30 mins" → agent_type="github", agent_role="analyzer", workflow_type="periodic", interval_seconds=1800
+    - "Review PRs every hour" → agent_type="github", agent_role="reviewer",
+      workflow_type="periodic", interval_seconds=3600
+    - "Implement auth feature" → agent_type="github", agent_role="implementer",
+      workflow_type="oneshot"
+    - "Analyze code quality every 30 mins" → agent_type="github",
+      agent_role="analyzer", workflow_type="periodic", interval_seconds=1800
     """
 
     type: Literal["workflow-request"]
