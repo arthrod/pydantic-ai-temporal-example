@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Any, assert_never
 
 import logfire
@@ -22,6 +22,7 @@ from pydantic_temporal_example.models import (
 )
 from pydantic_temporal_example.temporal.workflows import (
     CLIConversationWorkflow,
+    PeriodicGitHubPRCheckWorkflow,
     SlackThreadWorkflow,
 )
 from pydantic_temporal_example.tools.slack import get_verified_slack_events_body
@@ -98,8 +99,8 @@ class CLIWorkflowRequest(BaseModel):
 
     prompt: str = Field(..., description="The prompt/command to execute")
     session_id: str | None = Field(None, description="Optional session identifier")
-    repeat: bool = Field(False, description="Whether to repeat the command periodically")
-    repeat_interval: int = Field(30, description="Interval in seconds for repetition", ge=1)
+    repeat: bool = Field(default=False, description="Whether to repeat the command periodically")
+    repeat_interval: int = Field(default=30, description="Interval in seconds for repetition", ge=1)
     repo_name: str = Field("default-repo", description="Repository name for GitHub operations")
 
 
@@ -117,7 +118,7 @@ class CLIWorkflowAssignmentResponse(BaseModel):
         ),
     )
     message: str = Field(..., description="Human-readable message")
-    is_repeating: bool = Field(False, description="Whether this is a repeating workflow")
+    is_repeating: bool = Field(default=False, description="Whether this is a repeating workflow")
 
 
 @router.post("/cli-workflow")
@@ -129,13 +130,13 @@ async def submit_cli_workflow(
     """Submit a CLI workflow and return assignment confirmation."""
     try:
         # Generate unique workflow ID
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         workflow_id = f"cli-workflow-{timestamp}-{hash(request.prompt) % 10000:04d}"
 
         # Create CLI prompt event
         cli_event = CLIPromptEvent(
             prompt=request.prompt,
-            timestamp=datetime.now().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             session_id=request.session_id,
         )
 
@@ -151,7 +152,6 @@ async def submit_cli_workflow(
         # If repeat is requested, start a periodic workflow
         if request.repeat:
             periodic_workflow_id = f"periodic-cli-{workflow_id}"
-            from pydantic_temporal_example.temporal.workflows import PeriodicGitHubPRCheckWorkflow
 
             await temporal_client.start_workflow(
                 PeriodicGitHubPRCheckWorkflow.periodic_run,
@@ -179,7 +179,7 @@ async def submit_cli_workflow(
 
     except Exception as e:
         logfire.error("Failed to submit CLI workflow", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to assign workflow to worker")
+        raise HTTPException(status_code=500, detail="Failed to assign workflow to worker") from e
 
 
 @router.get("/cli-workflow/{workflow_id}/response")
@@ -216,11 +216,11 @@ async def get_cli_workflow_response(
             },
         )
 
-    except TemporalError:
-        raise HTTPException(status_code=404, detail="Workflow not found")
+    except TemporalError as e:
+        raise HTTPException(status_code=404, detail="Workflow not found") from e
     except Exception as e:
         logfire.error("Failed to query CLI workflow response", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to retrieve workflow response")
+        raise HTTPException(status_code=500, detail="Failed to retrieve workflow response") from e
 
 
 @router.delete("/cli-workflow/{workflow_id}")
@@ -258,8 +258,6 @@ async def stop_cli_workflow(
             # Try to stop as periodic workflow if not already stopped
             if not workflow_stopped:
                 try:
-                    from pydantic_temporal_example.temporal.workflows import PeriodicGitHubPRCheckWorkflow
-
                     handle = temporal_client.get_workflow_handle(workflow_id=wid)
                     await handle.signal(PeriodicGitHubPRCheckWorkflow.stop)
                     logfire.info("Periodic workflow stopped", workflow_id=wid)
@@ -286,10 +284,11 @@ async def stop_cli_workflow(
                 },
             )
 
-        raise HTTPException(status_code=404, detail="No workflows found or all already stopped")
+        msg = "No workflows found or all already stopped"
+        raise HTTPException(status_code=404, detail=msg)
 
     except HTTPException:
         raise
     except Exception as e:
         logfire.error("Failed to stop CLI workflow", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to stop workflow")
+        raise HTTPException(status_code=500, detail="Failed to stop workflow") from e
