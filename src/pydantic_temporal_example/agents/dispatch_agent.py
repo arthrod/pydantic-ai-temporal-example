@@ -80,38 +80,116 @@ class GitHubRequest:
     """Full Slack thread context for agent reference"""
 
 
-type DispatchResult = NoResponse | SlackResponse | WebResearchRequest | GitHubRequest
+@dataclass
+@with_config(use_attribute_docstrings=True)
+class WorkflowRequest:
+    """Generic workflow request with agent routing and scheduling information.
+
+    Use this when you need to specify:
+    - Which agent type and role to use
+    - Whether it should run once or repeatedly
+    - How often it should repeat (if periodic)
+
+    Examples:
+    - "Review PRs every hour" → agent_type="github", agent_role="reviewer", workflow_type="periodic", interval_seconds=3600
+    - "Implement auth feature" → agent_type="github", agent_role="implementer", workflow_type="oneshot"
+    - "Analyze code quality every 30 mins" → agent_type="github", agent_role="analyzer", workflow_type="periodic", interval_seconds=1800
+    """
+
+    type: Literal["workflow-request"]
+    agent_type: str
+    """Type of agent: 'github', 'web_research', 'slack'"""
+
+    agent_role: str = "default"
+    """Role specialization: 
+    - **GitHub Agents:** 'implementer', 'reviewer', 'fixer', 'verifier', 'analyzer', 'documenter', 'default'
+    - **Web Research Agents:** 'default'
+    - **Slack:** 'default'
+    """
+
+    query: str
+    """The actual query/instruction for the agent"""
+
+    workflow_type: Literal["oneshot", "periodic"] = "oneshot"
+    """Whether to run once or repeatedly"""
+
+    interval_seconds: int | None = None
+    """Repeat interval in seconds (required if workflow_type='periodic')"""
+
+    extra_info: str | None = None
+    """Additional context for the agent"""
+
+    thread_messages: list[dict[str, Any]] | None = None
+    """Full conversation thread context"""
+
+
+type DispatchResult = NoResponse | SlackResponse | WebResearchRequest | GitHubRequest | WorkflowRequest
 
 dispatch_agent = Agent(
     model=get_github_agent_model(),
-    output_type=[NoResponse, SlackResponse, WebResearchRequest, GitHubRequest],
+    output_type=[NoResponse, SlackResponse, WebResearchRequest, GitHubRequest, WorkflowRequest],
     instructions="""
-    You are a dispatch agent in an application designed to help a user with their requests.
+    You are a dispatch agent that routes user requests to appropriate agents and workflows.
 
-    You will be provided with the contents of a slack thread the user is messaging you in.
+    Your primary tool is WorkflowRequest, which should be used for most requests. It allows you to specify:
+    1. **agent_type**: github, web_research, slack
+    2. **agent_role**: Specialization (see below)
+    3. **workflow_type**: oneshot (run once) or periodic (repeat)
+    4. **interval_seconds**: How often to repeat (if periodic)
 
-    You will be triggered any time the user @-mentions you on slack, or when there is a reply to a thread in which you
-    have been @-mentioned.
+    ## Agent Types and Roles
 
-    Your goal should be to call, or collect enough information to call, the WebResearchRequest or GitHubRequest tool.
+    **GitHub Agents (All use same tools, different instructions):**
+    - **implementer**: Implements features, writes code, creates new functionality
+    - **reviewer**: Reviews PRs, checks for bugs, security, and code quality  
+    - **fixer**: Fixes bugs and issues identified in reviews or reports
+    - **verifier**: Verifies that fixes work and features meet requirements
+    - **analyzer**: Analyzes codebase metrics, patterns, tech debt
+    - **documenter**: Generates documentation from code
+    - **default**: General GitHub operations
 
-    The WebResearchRequest tool delegates to a specialized agent to do research on local options the user might be
-    interested in and sends a response to the user's request. It takes a while to do this research, so you should not
-    fill in the fields of the request by _guessing_ the user's preferences — if you are missing information, you must
-    use the SlackResponse tool to request the necessary information from the user before making the request.
+    **Web Research:**
+    - default: Research topics, gather information
 
-    The GitHubRequest tool delegates to a specialized agent to do research on GitHub repositories.
+    **Slack:**
+    - default: Direct response messages
 
-    If suggestions _have_ already been provided, you should NOT call the WebResearchRequest or GitHubRequest tool again
-    unless the user provides new information that would _change_ the contents of the request. If they just respond to
-    your suggestions, you can (optionally) use the search tools and just generate a SlackResponse directly.
+    ## Examples
 
-    The SlackResponse tool can also be used to otherwise engage the user if appropriate.
+    User: "Review PRs for security issues every hour"
+    → WorkflowRequest(agent_type="github", agent_role="reviewer", workflow_type="periodic", interval_seconds=3600)
 
-    You should NOT attempt to produce suggestions for the user directly — always use the WebResearchRequest or
-    GitHubRequest tool to produce the suggestions. However, you may use the duckduckgo tool to search the internet if
-    the user asks a relevant question that shouldn't be used to produce a call to the WebResearchRequest or
-    GitHubRequest tool.
+    User: "Implement user authentication"
+    → WorkflowRequest(agent_type="github", agent_role="implementer", workflow_type="oneshot")
+
+    User: "Fix the bugs in PR #123"
+    → WorkflowRequest(agent_type="github", agent_role="fixer", workflow_type="oneshot", query="Fix bugs in PR #123")
+
+    User: "Verify that the authentication feature works"
+    → WorkflowRequest(agent_type="github", agent_role="verifier", workflow_type="oneshot")
+
+    User: "Analyze code quality every 30 minutes"
+    → WorkflowRequest(agent_type="github", agent_role="analyzer", workflow_type="periodic", interval_seconds=1800)
+
+    User: "Document the API"
+    → WorkflowRequest(agent_type="github", agent_role="documenter", workflow_type="oneshot")
+
+    ## Multi-Step Workflows
+
+    When user asks to "fix a PR", you should understand this as potentially multiple steps:
+    1. First, use reviewer to identify issues
+    2. Then fixer to fix them
+    3. Finally verifier to confirm
+
+    However, YOU only return ONE WorkflowRequest at a time for the CURRENT step.
+    Multi-step orchestration happens externally.
+
+    ## Backward Compatibility
+
+    Legacy tools (GitHubRequest, WebResearchRequest, SlackResponse, NoResponse) still work
+    but prefer WorkflowRequest for its flexibility with roles and scheduling.
+
+    If missing information, use SlackResponse to ask the user.
     """,
     tools=[duckduckgo_search_tool()],
 )

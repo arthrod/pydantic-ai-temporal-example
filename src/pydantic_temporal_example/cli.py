@@ -114,9 +114,10 @@ def jina_research(
                 results = await jina_search(query, max_results=5)
                 logfire.info(f"Found {len(results)} results")
 
-                for _i, result in enumerate(results, 1):
+                for i, result in enumerate(results, 1):
                     if "content" in result:
-                        result["content"][:200]
+                        preview = result["content"][:200]
+                        logfire.info(f"Result {i}: {preview}...")
 
             except RuntimeError as e:
                 logfire.error(f"Error during research: {e}")
@@ -153,9 +154,12 @@ def combined_task(
 
             try:
                 results = await jina_search(research_query, max_results=5)
+                logfire.info(f"Found {len(results)} research results")
 
-                for _i, _result in enumerate(results, 1):
-                    pass
+                for i, result in enumerate(results, 1):
+                    if "content" in result:
+                        preview = result["content"][:200]
+                        logfire.info(f"Research result {i}: {preview}...")
 
             except RuntimeError as e:
                 logfire.error(f"Jina research error: {e}")

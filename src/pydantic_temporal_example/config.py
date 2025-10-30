@@ -17,6 +17,10 @@ class Settings(BaseSettings):
         TEMPORAL_HOST: Temporal server host (default: None for local testing)
         TEMPORAL_PORT: Temporal server port (default: 7233)
         TEMPORAL_TASK_QUEUE: Task queue name (default: "agent-task-queue")
+        APP_HOST: FastAPI app host for CLI communication (default: "127.0.0.1")
+        APP_PORT: FastAPI app port for CLI communication (default: 4000)
+        CLI_TIMEOUT: CLI request timeout in seconds (default: 30)
+        MAX_RETRY_ATTEMPTS: Maximum retry attempts for workflow operations (default: 3)
     """
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -25,6 +29,10 @@ class Settings(BaseSettings):
     temporal_host: str | None = None
     temporal_port: int = Field(default=7233, ge=1, le=65535, description="Temporal server port")
     temporal_task_queue: str = "agent-task-queue"
+    app_host: str = "127.0.0.1"
+    app_port: int = Field(default=4000, ge=1, le=65535, description="FastAPI app port")
+    cli_timeout: int = Field(default=30, ge=1, le=300, description="CLI request timeout in seconds")
+    max_retry_attempts: int = Field(default=3, ge=1, le=10, description="Maximum retry attempts")
     JINA_API_KEY: str = Field(default="", validation_alias=AliasChoices("JINA_API_KEY"))
     GITHUB_PAT: str = Field(default="", validation_alias=AliasChoices("GITHUB_PAT"))
     GITHUB_ORG: str = Field(default="arthrod", validation_alias=AliasChoices("GITHUB_ORG"))

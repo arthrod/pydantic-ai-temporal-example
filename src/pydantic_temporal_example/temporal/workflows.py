@@ -178,12 +178,14 @@ class SlackThreadWorkflow:
 
 @workflow.defn
 class PeriodicGitHubPRCheckWorkflow:
-    """Periodically checks GitHub PRs in a repository."""
+    """Periodically executes queries using the dispatcher for plug-and-play agent support."""
 
     def __init__(self) -> None:
         """Initialize workflow state."""
         self._should_continue = True
         self._check_count = 0
+        self._repo_name: str = "default-repo"
+        self._conversation_messages: list[dict[str, Any]] = []
 
     @workflow.run
     async def periodic_run(
@@ -192,34 +194,78 @@ class PeriodicGitHubPRCheckWorkflow:
         check_interval_seconds: int = 30,
         query: str = "List all pull requests in the repository",
     ) -> None:
-        """Main workflow loop: periodically fetches PRs from GitHub.
+        """Main workflow loop: periodically executes queries via dispatcher.
 
         Args:
             repo_name: Repository name to check (without organization)
             check_interval_seconds: How often to check for PRs (default: 30 seconds)
-            query: The query/instruction to pass to the GitHub agent
+            query: The query/instruction to pass to the dispatch agent
+        
+        Note:
+            Uses the dispatcher agent to route queries to appropriate agents (GitHub, WebResearch, etc.)
+            This enables plug-and-play agent architecture.
         """
+        self._repo_name = repo_name
         workflow.logger.info(
-            f"Starting periodic PR check for repository: {repo_name}, interval: {check_interval_seconds}s",
+            f"Starting periodic query execution for repository: {repo_name}, interval: {check_interval_seconds}s",
         )
         workflow.logger.info(f"Query: {query}")
 
         while self._should_continue:
             self._check_count += 1
             check_num = self._check_count
-            workflow.logger.info(f"Check #{check_num} - Starting PR fetch from {repo_name}")
+            workflow.logger.info(f"Check #{check_num} - Executing query via dispatcher")
 
-            # Start the activity without awaiting (fire and forget)
-            # This allows the next check to start at the scheduled interval
-            workflow.start_activity(  # pyright: ignore[reportUnknownMemberType]
-                fetch_github_prs,
-                args=[repo_name, query],
-                start_to_close_timeout=timedelta(minutes=5),
-                retry_policy=RetryPolicy(maximum_attempts=3),
-            )
+            # Build conversation context for dispatcher
+            user_message = {
+                "role": "user",
+                "content": f"Repository: {repo_name}. {query}",
+                "timestamp": workflow.now().isoformat(),
+            }
+            self._conversation_messages.append(user_message)
+            
+            # Use dispatcher to determine which agent to use (GitHub, WebResearch, etc.)
+            stringified_conversation = json.dumps(self._conversation_messages, indent=2)
+            dispatcher_result = await temporal_dispatch_agent.run(stringified_conversation, output_type=DispatchResult)  # type: ignore[call-arg]
 
-            # Log when activity is started (not completed)
-            workflow.logger.info(f"Check #{check_num} - Activity started, will run concurrently")
+            # Handle dispatcher result
+            response: str | list[dict[str, Any]]
+            if isinstance(dispatcher_result.output, NoResponse):
+                workflow.logger.info(f"Check #{check_num} - Dispatcher determined no response needed")
+                response = "(No response needed)"
+            elif isinstance(dispatcher_result.output, SlackResponse):
+                response = dispatcher_result.output.response
+                workflow.logger.info(f"Check #{check_num} - Processed via Slack response")
+            elif isinstance(dispatcher_result.output, GitHubRequest):
+                # Route to GitHub agent based on dispatcher decision
+                request = dispatcher_result.output
+                deps = GitHubDependencies(repo_name=self._repo_name)
+                result = await temporal_github_agent.run(request.query, output_type=GitHubResponse, deps=deps)  # type: ignore[call-arg, arg-type]
+                response = result.output.response
+                workflow.logger.info(f"Check #{check_num} - Processed via GitHub agent")
+            elif isinstance(dispatcher_result.output, WebResearchRequest):
+                # Route to Web Research agent based on dispatcher decision
+                if temporal_web_research_agent is None:
+                    response = "Web research is not available. Please configure JINA_API_KEY."
+                    workflow.logger.warn(f"Check #{check_num} - Web research requested but not configured")
+                else:
+                    request = dispatcher_result.output
+                    result = await temporal_web_research_agent.run(request.query, output_type=WebResearchResponse)
+                    response = result.output.response
+                    workflow.logger.info(f"Check #{check_num} - Processed via Web Research agent")
+            else:
+                assert_never(dispatcher_result.output)  # type: ignore[arg-type]
+
+            # Store response in conversation history
+            assistant_message = {
+                "role": "assistant",
+                "content": response,
+                "timestamp": workflow.now().isoformat(),
+            }
+            self._conversation_messages.append(assistant_message)
+
+            # Log completion
+            workflow.logger.info(f"Check #{check_num} - Completed successfully")
 
             # Wait before the next check (this allows concurrent execution)
             workflow.logger.info(f"Waiting {check_interval_seconds}s before next check...")
