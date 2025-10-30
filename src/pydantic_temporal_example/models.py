@@ -1,10 +1,15 @@
+"""Pydantic models for Slack events, CLI prompts, and request payloads."""
+
+from __future__ import annotations
+
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Discriminator, TypeAdapter
-from typing_extensions import TypeAlias
 
 
 class MessageChannelsEvent(BaseModel):
+    """Slack `message` event with channel context and thread metadata."""
+
     type: Literal["message"]
     user: str
     text: str
@@ -16,10 +21,13 @@ class MessageChannelsEvent(BaseModel):
 
     @property
     def reply_thread_ts(self) -> str:
+        """Timestamp to reply in thread, falling back to message `ts`."""
         return self.thread_ts or self.ts
 
 
 class AppMentionEvent(BaseModel):
+    """Slack `app_mention` event capturing the mention context in a thread."""
+
     type: Literal["app_mention"]
     user: str
     text: str
@@ -30,21 +38,27 @@ class AppMentionEvent(BaseModel):
 
     @property
     def reply_thread_ts(self) -> str:
+        """Timestamp to reply in thread, falling back to message `ts`."""
         return self.thread_ts or self.ts
 
 
 class URLVerificationEvent(BaseModel):
+    """Slack Events API URL verification challenge payload."""
+
     type: Literal["url_verification"]
     token: str
     challenge: str
 
 
-SlackEvent: TypeAlias = Annotated[
-    AppMentionEvent | MessageChannelsEvent, Discriminator("type")
+type SlackEvent = Annotated[
+    AppMentionEvent | MessageChannelsEvent,
+    Discriminator("type"),
 ]  # extendable for other event types; see https://docs.slack.dev/reference/events/
 
 
 class SlackEventsAPIBody(BaseModel):
+    """Envelope for Slack Events API callbacks carrying the event and metadata."""
+
     token: str
     team_id: str  # | None = None
     api_app_id: str  # | None = None
@@ -56,36 +70,72 @@ class SlackEventsAPIBody(BaseModel):
 
 
 SlackEventsAPIBodyAdapter: TypeAdapter[SlackEventsAPIBody | URLVerificationEvent | dict[str, Any]] = TypeAdapter(
-    Annotated[SlackEventsAPIBody | URLVerificationEvent, Discriminator("type")] | dict[str, Any]
+    Annotated[SlackEventsAPIBody | URLVerificationEvent, Discriminator("type")] | dict[str, Any],
 )
 
 
 class SlackMessageID(BaseModel):
+    """Identifier for a Slack message, consisting of channel and timestamp."""
+
     channel: str
     ts: str
 
 
 class SlackReply(BaseModel):
+    """A response payload to post in a Slack thread."""
+
     thread: SlackMessageID
     content: str | list[dict[str, Any]]
 
     @property
     def text(self) -> str | None:
+        """Plain text response when `content` is a string; otherwise `None`."""
         return self.content if isinstance(self.content, str) else None
 
     @property
     def blocks(self) -> list[dict[str, Any]] | None:
+        """Block Kit payload when `content` is blocks; otherwise `None`."""
         return self.content if not isinstance(self.content, str) else None
 
 
 class SlackReaction(BaseModel):
+    """A reaction event targeting a specific Slack message."""
+
     message: SlackMessageID
     name: str
 
 
 class SlackConversationsRepliesRequest(BaseModel):
+    """Request parameters to fetch replies for a Slack thread."""
+
     # See https://docs.slack.dev/reference/methods/conversations.replies/
 
     channel: str
     ts: str
     oldest: str | None  # only include messages after this unix timestamp
+
+
+# CLI Models
+
+
+class CLIPromptEvent(BaseModel):
+    """User prompt input from CLI interface."""
+
+    prompt: str
+    timestamp: str
+    session_id: str | None = None
+
+
+class CLIResponse(BaseModel):
+    """Response payload to return to CLI interface."""
+
+    content: str | list[dict[str, Any]]
+    metadata: dict[str, Any] | None = None
+
+    @property
+    def text(self) -> str:
+        """Format response as plain text for CLI display."""
+        if isinstance(self.content, str):
+            return self.content
+        # Convert structured content to readable text
+        return str(self.content)
