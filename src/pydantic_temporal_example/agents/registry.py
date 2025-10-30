@@ -23,55 +23,63 @@ if TYPE_CHECKING:
 
 
 # Cache for dynamically created agents to avoid recreating them
-_AGENT_CACHE: dict[tuple[str, str], AgentType | None] = {}
+# Using Any for the agent type to support different output types
+_AGENT_CACHE: dict[tuple[str, str], Agent | None] = {}  # type: ignore[type-arg]
 
 
 def _create_github_agent_with_role(role: str) -> AgentType:
     """Create a GitHub agent with role-specific instructions.
-    
+
     Args:
         role: Role specialization (implementer, reviewer, fixer, verifier, etc.)
-    
+
     Returns:
         Agent configured with role-specific instructions
     """
     from pydantic_temporal_example.agents.github_agent import GitHubDependencies, GitHubResponse
-    
+
     # Get role-specific instructions
     instructions = get_instructions_for_role("github", role)
-    
-    # Get the base agent's tools (from the existing github_agent)
-    base_tools = github_agent._function_tools if hasattr(github_agent, '_function_tools') else []
-    
+
+    # Extract tools from base github_agent using public API
+    # Access the function toolset from the agent's toolsets
+    tools_list = []
+    if hasattr(github_agent, 'toolsets') and github_agent.toolsets:
+        # Find the function toolset in the agent's toolsets
+        for toolset in github_agent.toolsets:
+            # FunctionToolset contains the individually registered tools
+            if hasattr(toolset, 'tools'):
+                tools_list = toolset.tools
+                break
+
     # Create new agent with same configuration but different instructions
-    agent = Agent(
+    # Pass the extracted tools from the base agent
+    return Agent(
         model=get_github_agent_model(),
         output_type=GitHubResponse,
         deps_type=GitHubDependencies,
         instructions=instructions,
-        tools=base_tools,  # Reuse the same tools!
+        tools=tools_list,  # Use tools from base agent via public API
     )
-    
-    return agent
 
 
 def get_agent(agent_type: str, agent_role: str = "default") -> Agent | None:
     """Get agent with role-specific instructions (dynamically created).
-    
+
     Instead of pre-creating multiple agent instances, this function creates agents
     on-demand with role-specific instructions. The agent implementation (tools, model)
     stays the same, only instructions change based on role.
-    
+
     Args:
         agent_type: Type of agent (e.g., "github", "web_research")
         agent_role: Role specialization (e.g., "implementer", "reviewer", "fixer", "verifier")
-    
+
     Returns:
         Agent instance with role-specific instructions, or None for direct responses
-    
+
     Raises:
         KeyError: If agent type is not supported
-    
+
     Examples:
         >>> agent = get_agent("github", "reviewer")  # Creates reviewer with review instructions
         >>> agent = get_agent("github", "fixer")     # Creates fixer with fix instructions
@@ -81,38 +89,37 @@ def get_agent(agent_type: str, agent_role: str = "default") -> Agent | None:
     key = (agent_type, agent_role)
     if key in _AGENT_CACHE:
         return _AGENT_CACHE[key]
-    
+
     # Create agent based on type
     if agent_type == "github":
         # Dynamically create GitHub agent with role-specific instructions
         agent = _create_github_agent_with_role(agent_role)
         _AGENT_CACHE[key] = agent
         return agent
-    
-    elif agent_type == "web_research":
+
+    if agent_type == "web_research":
         # Web research doesn't have multiple roles yet, use default
         if key not in _AGENT_CACHE:
             _AGENT_CACHE[key] = build_web_research_agent()
         return _AGENT_CACHE[key]
-    
-    elif agent_type == "slack":
+
+    if agent_type == "slack":
         # Slack is a direct response, no agent needed
         return None
-    
-    else:
-        # Agent type not supported
-        raise KeyError(
-            f"Agent type '{agent_type}' not supported. "
-            f"Available types: github, web_research, slack"
-        )
+
+    # Agent type not supported
+    msg = f"Agent type '{agent_type}' not supported. Available types: github, web_research, slack"
+    raise KeyError(
+        msg,
+    )
 
 
 def list_available_agent_roles() -> dict[str, list[str]]:
     """List all available agent types and their roles.
-    
+
     Returns:
         Dictionary mapping agent_type to list of available roles
-    
+
     Example:
         >>> list_available_agent_roles()
         {
@@ -130,7 +137,7 @@ def list_available_agent_roles() -> dict[str, list[str]]:
 
 def clear_agent_cache() -> None:
     """Clear the agent cache.
-    
+
     Useful for testing or when you want to force agents to be recreated
     with updated instructions or configuration.
     """

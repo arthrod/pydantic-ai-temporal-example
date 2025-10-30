@@ -7,8 +7,9 @@ host, port, and task queue options.
 import asyncio
 import signal
 import sys
-from typing import Annotated
+from typing import Annotated, Any
 
+import httpx
 import logfire
 import typer
 import uvloop
@@ -22,6 +23,69 @@ from pydantic_temporal_example.temporal.workflows import PeriodicGitHubPRCheckWo
 from pydantic_temporal_example.tools.jina_search import jina_search
 
 app = typer.Typer()
+
+
+# HTTP client functions for interacting with the API
+async def send_workflow_request(
+    prompt: str,
+    app_host: str = "127.0.0.1",
+    app_port: int = 4000,
+    repeat: bool = False,
+    repeat_interval: int = 30,
+    repo_name: str = "default-repo",
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    """Send a workflow request to the API server.
+
+    Args:
+        prompt: The command/prompt to execute
+        app_host: API server host
+        app_port: API server port
+        repeat: Whether to repeat the workflow
+        repeat_interval: Interval in seconds for repetition
+        repo_name: Repository name for GitHub operations
+        session_id: Optional session identifier
+
+    Returns:
+        JSON response from the API
+    """
+    url = f"http://{app_host}:{app_port}/cli-workflow"
+    payload = {
+        "prompt": prompt,
+        "repeat": repeat,
+        "repeat_interval": repeat_interval,
+        "repo_name": repo_name,
+    }
+    if session_id:
+        payload["session_id"] = session_id
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, json=payload, timeout=30.0)
+        response.raise_for_status()
+        return response.json()
+
+
+async def check_workflow_response(
+    workflow_id: str,
+    app_host: str = "127.0.0.1",
+    app_port: int = 4000,
+) -> dict[str, Any]:
+    """Check the response from a workflow.
+
+    Args:
+        workflow_id: The workflow ID to check
+        app_host: API server host
+        app_port: API server port
+
+    Returns:
+        JSON response containing workflow status and response
+    """
+    url = f"http://{app_host}:{app_port}/cli-workflow/{workflow_id}/response"
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, timeout=10.0)
+        response.raise_for_status()
+        return response.json()
 
 
 @app.command()

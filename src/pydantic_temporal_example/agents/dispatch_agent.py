@@ -101,7 +101,7 @@ class WorkflowRequest:
     """Type of agent: 'github', 'web_research', 'slack'"""
 
     agent_role: str = "default"
-    """Role specialization: 
+    """Role specialization:
     - **GitHub Agents:** 'implementer', 'reviewer', 'fixer', 'verifier', 'analyzer', 'documenter', 'default'
     - **Web Research Agents:** 'default'
     - **Slack:** 'default'
@@ -141,7 +141,7 @@ dispatch_agent = Agent(
 
     **GitHub Agents (All use same tools, different instructions):**
     - **implementer**: Implements features, writes code, creates new functionality
-    - **reviewer**: Reviews PRs, checks for bugs, security, and code quality  
+    - **reviewer**: Reviews PRs, checks for bugs, security, and code quality
     - **fixer**: Fixes bugs and issues identified in reviews or reports
     - **verifier**: Verifies that fixes work and features meet requirements
     - **analyzer**: Analyzes codebase metrics, patterns, tech debt

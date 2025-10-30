@@ -126,7 +126,9 @@ async def submit_cli_workflow(
 
         # Create CLI prompt event
         cli_event = CLIPromptEvent(
-            prompt=request.prompt, timestamp=datetime.now().isoformat(), session_id=request.session_id
+            prompt=request.prompt,
+            timestamp=datetime.now().isoformat(),
+            session_id=request.session_id,
         )
 
         # Start the CLI conversation workflow
@@ -158,7 +160,10 @@ async def submit_cli_workflow(
             )
         else:
             response = CLIWorkflowAssignmentResponse(
-                success=True, workflow_id=workflow_id, message="Workflow assigned to a worker.", is_repeating=False
+                success=True,
+                workflow_id=workflow_id,
+                message="Workflow assigned to a worker.",
+                is_repeating=False,
             )
 
         logfire.info("CLI workflow submitted", workflow_id=response.workflow_id, prompt=request.prompt)
@@ -216,7 +221,8 @@ async def stop_cli_workflow(
             from pydantic_temporal_example.temporal.workflows import PeriodicGitHubPRCheckWorkflow
 
             handle = temporal_client.get_workflow_handle_for(
-                PeriodicGitHubPRCheckWorkflow.periodic_run, workflow_id=workflow_id
+                PeriodicGitHubPRCheckWorkflow.periodic_run,
+                workflow_id=workflow_id,
             )
             await handle.signal(PeriodicGitHubPRCheckWorkflow.stop)
             logfire.info("Periodic workflow stopped", workflow_id=workflow_id)

@@ -6,14 +6,11 @@ These workflows separate scheduling logic from business logic, enabling:
 - No workflow changes needed when adding new agents
 """
 
-from __future__ annotations
+from __future__ import annotations
 
-import asyncio
-import json
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
-import logfire
 from temporalio import workflow
 
 from pydantic_temporal_example.agents.github_agent import GitHubDependencies, GitHubResponse
@@ -31,7 +28,7 @@ _agent_activity_config: ActivityConfig = {"start_to_close_timeout": timedelta(mi
 @workflow.defn
 class GenericOneShotWorkflow:
     """Generic one-shot workflow that works with any agent from the registry.
-    
+
     Executes an agent once and returns the result. The dispatcher determines
     which agent to use based on the user's request.
     """
@@ -50,13 +47,13 @@ class GenericOneShotWorkflow:
         context: dict[str, Any] | None = None,
     ) -> str:
         """Execute agent once and return result.
-        
+
         Args:
             agent_type: Type of agent from registry (e.g., "github", "web_research")
             agent_role: Role specialization (e.g., "implementer", "reviewer", "default")
             query: The query/instruction for the agent
             context: Additional context (repo_name, etc.)
-        
+
         Returns:
             Agent response as string
         """
@@ -70,7 +67,7 @@ class GenericOneShotWorkflow:
         # Get agent from registry
         try:
             from pydantic_ai.durable_exec.temporal import TemporalAgent
-            
+
             agent = get_agent(agent_type, agent_role)
             if agent is None:
                 # Direct response without agent (e.g., Slack)
@@ -78,8 +75,12 @@ class GenericOneShotWorkflow:
                 response = query
             else:
                 # Execute agent via Temporal
-                temporal_agent = TemporalAgent(agent, name=f"{agent_type}_{agent_role}", activity_config=_agent_activity_config)
-                
+                temporal_agent = TemporalAgent(
+                    agent,
+                    name=f"{agent_type}_{agent_role}",
+                    activity_config=_agent_activity_config,
+                )
+
                 # Prepare dependencies based on agent type
                 if agent_type == "github":
                     deps = GitHubDependencies(repo_name=self._repo_name)
@@ -90,9 +91,9 @@ class GenericOneShotWorkflow:
                     response = result.output.response
                 else:
                     # Generic execution
-                    result = await temporal_agent.run(query)
+                    result = await temporal_agent.run(query, output_type=str)
                     response = str(result.output)
-                
+
                 workflow.logger.info(f"Agent executed successfully: {agent_type}/{agent_role}")
 
         except KeyError as e:
@@ -100,7 +101,7 @@ class GenericOneShotWorkflow:
             response = f"Error: Agent {agent_type}/{agent_role} not found in registry"
         except Exception as e:
             workflow.logger.error(f"Agent execution failed: {e}")
-            response = f"Error executing agent: {str(e)}"
+            response = f"Error executing agent: {e!s}"
 
         # Store response
         self._latest_response = CLIResponse(
@@ -123,7 +124,7 @@ class GenericOneShotWorkflow:
 @workflow.defn
 class GenericPeriodicWorkflow:
     """Generic periodic workflow that works with any agent from the registry.
-    
+
     Repeatedly executes an agent at a specified interval. The dispatcher determines
     which agent to use and how often to run it.
     """
@@ -145,14 +146,14 @@ class GenericPeriodicWorkflow:
         context: dict[str, Any] | None = None,
     ) -> None:
         """Execute agent periodically at specified interval.
-        
+
         Args:
             agent_type: Type of agent from registry (e.g., "github", "web_research")
             agent_role: Role specialization (e.g., "implementer", "reviewer", "default")
             query: The query/instruction for the agent
             interval_seconds: How often to execute (in seconds)
             context: Additional context (repo_name, etc.)
-        
+
         Note:
             Temporal handles the repetition logic. The agent is just executed on each iteration.
         """
@@ -161,21 +162,25 @@ class GenericPeriodicWorkflow:
             self._repo_name = context.get("repo_name", "default-repo")
 
         workflow.logger.info(
-            f"Starting periodic execution: {agent_type}/{agent_role}, interval: {interval_seconds}s"
+            f"Starting periodic execution: {agent_type}/{agent_role}, interval: {interval_seconds}s",
         )
         workflow.logger.info(f"Query: {query}")
 
         # Get agent from registry once (reuse across iterations)
         try:
             from pydantic_ai.durable_exec.temporal import TemporalAgent
-            
+
             agent = get_agent(agent_type, agent_role)
             if agent is None:
                 workflow.logger.error("Cannot run periodic workflow with direct response agent")
                 return
-                
-            temporal_agent = TemporalAgent(agent, name=f"{agent_type}_{agent_role}", activity_config=_agent_activity_config)
-            
+
+            temporal_agent = TemporalAgent(
+                agent,
+                name=f"{agent_type}_{agent_role}",
+                activity_config=_agent_activity_config,
+            )
+
         except KeyError as e:
             workflow.logger.error(f"Agent not found: {e}")
             return
@@ -184,7 +189,7 @@ class GenericPeriodicWorkflow:
         while self._should_continue:
             self._execution_count += 1
             execution_num = self._execution_count
-            
+
             workflow.logger.info(f"Execution #{execution_num} - Running {agent_type}/{agent_role}")
 
             try:
@@ -205,7 +210,7 @@ class GenericPeriodicWorkflow:
                     result = await temporal_agent.run(query, output_type=WebResearchResponse)
                     response = result.output.response
                 else:
-                    result = await temporal_agent.run(query)
+                    result = await temporal_agent.run(query, output_type=str)
                     response = str(result.output)
 
                 # Store response

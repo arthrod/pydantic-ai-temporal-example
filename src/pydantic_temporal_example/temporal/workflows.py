@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, assert_never
 
 from pydantic_ai.durable_exec.temporal import TemporalAgent
 from temporalio import workflow
-from temporalio.common import RetryPolicy
 
 from pydantic_temporal_example.agents.dispatch_agent import (
     DispatchResult,
@@ -38,7 +37,6 @@ from pydantic_temporal_example.models import (
     SlackReaction,
     SlackReply,
 )
-from pydantic_temporal_example.temporal.github_activities import fetch_github_prs
 from pydantic_temporal_example.temporal.slack_activities import (
     slack_chat_post_message,
     slack_conversations_replies,
@@ -200,7 +198,7 @@ class PeriodicGitHubPRCheckWorkflow:
             repo_name: Repository name to check (without organization)
             check_interval_seconds: How often to check for PRs (default: 30 seconds)
             query: The query/instruction to pass to the dispatch agent
-        
+
         Note:
             Uses the dispatcher agent to route queries to appropriate agents (GitHub, WebResearch, etc.)
             This enables plug-and-play agent architecture.
@@ -223,7 +221,7 @@ class PeriodicGitHubPRCheckWorkflow:
                 "timestamp": workflow.now().isoformat(),
             }
             self._conversation_messages.append(user_message)
-            
+
             # Use dispatcher to determine which agent to use (GitHub, WebResearch, etc.)
             stringified_conversation = json.dumps(self._conversation_messages, indent=2)
             dispatcher_result = await temporal_dispatch_agent.run(stringified_conversation, output_type=DispatchResult)  # type: ignore[call-arg]
@@ -247,7 +245,7 @@ class PeriodicGitHubPRCheckWorkflow:
                 # Route to Web Research agent based on dispatcher decision
                 if temporal_web_research_agent is None:
                     response = "Web research is not available. Please configure JINA_API_KEY."
-                    workflow.logger.warn(f"Check #{check_num} - Web research requested but not configured")
+                    workflow.logger.warning(f"Check #{check_num} - Web research requested but not configured")
                 else:
                     request = dispatcher_result.output
                     result = await temporal_web_research_agent.run(request.query, output_type=WebResearchResponse)
