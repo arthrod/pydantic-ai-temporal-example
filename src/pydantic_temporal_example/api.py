@@ -213,7 +213,7 @@ async def get_cli_workflow_response(
                 "status": "completed",
                 "response": response.model_dump(),
                 "workflow_id": first_workflow_id,
-            }
+            },
         )
 
     except TemporalError:
@@ -283,7 +283,7 @@ async def stop_cli_workflow(
                     "message": message,
                     "stopped_workflows": stopped_workflows,
                     "failed_workflows": failed_workflows,
-                }
+                },
             )
 
         raise HTTPException(status_code=404, detail="No workflows found or all already stopped")

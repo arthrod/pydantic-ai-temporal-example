@@ -5,6 +5,7 @@ host, port, and task queue options.
 """
 
 import asyncio
+import os
 import signal
 import sys
 from typing import Annotated, Any
@@ -34,6 +35,8 @@ async def send_workflow_request(
     repeat_interval: int = 30,
     repo_name: str = "default-repo",
     session_id: str | None = None,
+    use_https: bool | None = None,
+    max_retries: int = 3,
 ) -> dict[str, Any]:
     """Send a workflow request to the API server.
 
@@ -45,11 +48,23 @@ async def send_workflow_request(
         repeat_interval: Interval in seconds for repetition
         repo_name: Repository name for GitHub operations
         session_id: Optional session identifier
+        use_https: Whether to use HTTPS. If None, checks API_USE_HTTPS env var (default: False)
+        max_retries: Maximum number of retries for transient failures (default: 3)
 
     Returns:
-        JSON response from the API
+        JSON response from the API containing workflow_id and status
+
+    Raises:
+        httpx.HTTPStatusError: If the API returns an error status (4xx/5xx)
+        httpx.RequestError: If the request fails due to network issues
+        httpx.TimeoutException: If the request times out after all retries
     """
-    url = f"http://{app_host}:{app_port}/cli-workflow"
+    # Determine protocol from parameter or environment variable
+    if use_https is None:
+        use_https = os.getenv("API_USE_HTTPS", "false").lower() == "true"
+    protocol = "https" if use_https else "http"
+    url = f"{protocol}://{app_host}:{app_port}/cli-workflow"
+
     payload = {
         "prompt": prompt,
         "repeat": repeat,
@@ -59,33 +74,94 @@ async def send_workflow_request(
     if session_id:
         payload["session_id"] = session_id
 
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url, json=payload, timeout=30.0)
-        response.raise_for_status()
-        return response.json()
+    # Configure retry logic for transient failures
+    transport = httpx.AsyncHTTPTransport(retries=max_retries)
+
+    async with httpx.AsyncClient(transport=transport) as client:
+        try:
+            response = await client.post(url, json=payload, timeout=30.0)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logfire.error(
+                "API returned error status",
+                status_code=e.response.status_code,
+                url=url,
+                error=str(e),
+            )
+            raise
+        except httpx.RequestError as e:
+            logfire.error(
+                "Request failed due to network error",
+                url=url,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            raise
 
 
 async def check_workflow_response(
     workflow_id: str,
     app_host: str = "127.0.0.1",
     app_port: int = 4000,
+    use_https: bool | None = None,
+    max_retries: int = 3,
 ) -> dict[str, Any]:
     """Check the response from a workflow.
 
+    Handles both single workflow IDs and composite IDs (comma-separated).
+    For composite IDs, queries the first workflow (one-shot execution).
+
     Args:
-        workflow_id: The workflow ID to check
+        workflow_id: The workflow ID to check (single or composite)
         app_host: API server host
         app_port: API server port
+        use_https: Whether to use HTTPS. If None, checks API_USE_HTTPS env var (default: False)
+        max_retries: Maximum number of retries for transient failures (default: 3)
 
     Returns:
-        JSON response containing workflow status and response
-    """
-    url = f"http://{app_host}:{app_port}/cli-workflow/{workflow_id}/response"
+        JSON response containing:
+        - status: "pending" or "completed"
+        - response: The workflow response (if completed)
+        - workflow_id: The actual workflow ID queried (first ID if composite)
 
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, timeout=10.0)
-        response.raise_for_status()
-        return response.json()
+    Raises:
+        httpx.HTTPStatusError: If the API returns an error status (4xx/5xx)
+        httpx.RequestError: If the request fails due to network issues
+        httpx.TimeoutException: If the request times out after all retries
+    """
+    # Determine protocol from parameter or environment variable
+    if use_https is None:
+        use_https = os.getenv("API_USE_HTTPS", "false").lower() == "true"
+    protocol = "https" if use_https else "http"
+    url = f"{protocol}://{app_host}:{app_port}/cli-workflow/{workflow_id}/response"
+
+    # Configure retry logic for transient failures
+    transport = httpx.AsyncHTTPTransport(retries=max_retries)
+
+    async with httpx.AsyncClient(transport=transport) as client:
+        try:
+            response = await client.get(url, timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logfire.error(
+                "API returned error status",
+                status_code=e.response.status_code,
+                url=url,
+                workflow_id=workflow_id,
+                error=str(e),
+            )
+            raise
+        except httpx.RequestError as e:
+            logfire.error(
+                "Request failed due to network error",
+                url=url,
+                workflow_id=workflow_id,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            raise
 
 
 @app.command()
