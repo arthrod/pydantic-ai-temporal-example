@@ -9,7 +9,7 @@ Key Innovation: ONE agent implementation + DIFFERENT instructions = MULTIPLE spe
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pydantic_ai import Agent
 
@@ -18,17 +18,13 @@ from pydantic_temporal_example.agents.instruction_templates import get_instructi
 from pydantic_temporal_example.agents.web_research_agent import build_web_research_agent
 from pydantic_temporal_example.config import get_github_agent_model
 
-if TYPE_CHECKING:
-    from pydantic_ai import Agent as AgentType
-
-
 # Cache for dynamically created agents to avoid recreating them
 # Using Any for the agent value type to support agents with different output types
 # (GitHubResponse, WebResearchResponse, etc.)
 _AGENT_CACHE: dict[tuple[str, str], Any] = {}
 
 
-def _create_github_agent_with_role(role: str) -> AgentType:
+def _create_github_agent_with_role(role: str) -> Agent[GitHubDependencies, GitHubResponse]:
     """Create a GitHub agent with role-specific instructions.
 
     Args:
@@ -57,7 +53,7 @@ def _create_github_agent_with_role(role: str) -> AgentType:
     )
 
 
-def get_agent(agent_type: str, agent_role: str = "default") -> Agent | None:
+def get_agent(agent_type: str, agent_role: str = "default") -> Any:
     """Get agent with role-specific instructions (dynamically created).
 
     Instead of pre-creating multiple agent instances, this function creates agents

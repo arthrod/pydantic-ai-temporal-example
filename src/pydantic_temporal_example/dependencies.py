@@ -45,7 +45,7 @@ async def _close_client_safely(client: TemporalClient | SlackClient | None, clie
         # Both TemporalClient and SlackClient have close() method
         await client.close()  # type: ignore[union-attr]
         logfire.info(f"{client_name} closed successfully")
-    except BaseException:  # noqa: BLE001
+    except BaseException:
         # Catch all exceptions during cleanup to avoid suppressing original errors
         logfire.exception(f"Error closing {client_name}")
 

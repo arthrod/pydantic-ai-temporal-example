@@ -11,6 +11,7 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
+from pydantic_ai.durable_exec.temporal import TemporalAgent
 from temporalio import workflow
 
 from pydantic_temporal_example.agents.github_agent import GitHubDependencies, GitHubResponse
@@ -66,8 +67,6 @@ class GenericOneShotWorkflow:
 
         # Get agent from registry
         try:
-            from pydantic_ai.durable_exec.temporal import TemporalAgent
-
             agent = get_agent(agent_type, agent_role)
             if agent is None:
                 # Direct response without agent (e.g., Slack)
@@ -99,7 +98,7 @@ class GenericOneShotWorkflow:
         except KeyError as e:
             workflow.logger.error(f"Agent not found: {e}")
             response = f"Error: Agent {agent_type}/{agent_role} not found in registry"
-        except Exception as e:
+        except (ValueError, RuntimeError, TypeError) as e:
             workflow.logger.error(f"Agent execution failed: {e}")
             response = f"Error executing agent: {e!s}"
 
@@ -168,8 +167,6 @@ class GenericPeriodicWorkflow:
 
         # Get agent from registry once (reuse across iterations)
         try:
-            from pydantic_ai.durable_exec.temporal import TemporalAgent
-
             agent = get_agent(agent_type, agent_role)
             if agent is None:
                 workflow.logger.error("Cannot run periodic workflow with direct response agent")
@@ -223,7 +220,7 @@ class GenericPeriodicWorkflow:
 
                 workflow.logger.info(f"Execution #{execution_num} - Completed successfully")
 
-            except Exception as e:
+            except (ValueError, RuntimeError, TypeError, KeyError) as e:
                 workflow.logger.error(f"Execution #{execution_num} - Failed: {e}")
                 # Continue to next iteration even if this one failed
 

@@ -126,9 +126,12 @@ class WorkflowRequest:
     """Full conversation thread context"""
 
     def __post_init__(self) -> None:
-        """Validate that interval_seconds is set for periodic workflows."""
+        """Validate that interval_seconds is set and positive for periodic workflows."""
         if self.workflow_type == "periodic" and self.interval_seconds is None:
             msg = "interval_seconds is required when workflow_type='periodic'"
+            raise ValueError(msg)
+        if self.workflow_type == "periodic" and self.interval_seconds is not None and self.interval_seconds <= 0:
+            msg = "interval_seconds must be a positive value when workflow_type='periodic'"
             raise ValueError(msg)
 
 
