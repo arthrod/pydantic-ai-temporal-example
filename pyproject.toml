@@ -29,7 +29,7 @@ temporal-agent = "src.pydantic_temporal_example.cli:app"
 [dependency-groups]
 dev = [
     # Needed for PyCharm users
-    "pip>=25.2",
+    "pip>=26.0.1",
 ]
 lint = ["pyright>=1.1.405", "ruff>=0.12.10"]
 test = [
